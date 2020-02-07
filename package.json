@@ -1,0 +1,40 @@
+{
+  "name": "chitchat",
+  "version": "1.0.0",
+  "description": "Globular tutorial application",
+  "main": "index.ts",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "webpack --mode production && cp -R img dist  && cp favicon.ico dist && cp index.html dist && Globular deploy -u=sa -p=adminadmin -name=chitchat -a=localhost -path=dist"
+  },
+  "devDependencies": {
+    "css-loader": "^3.4.0",
+    "file-loader": "^5.0.2",
+    "mini-css-extract-plugin": "^0.9.0",
+    "node-sass": "^4.13.0",
+    "sass-loader": "^8.0.0",
+    "style-loader": "^1.1.1",
+    "ts-loader": "^6.2.1",
+    "typescript": "^3.6.4",
+    "typescript-plugin-css-modules": "^2.0.2",
+    "webpack": "^4.41.4",
+    "webpack-cli": "^3.3.9",
+    "@types/jwt-decode": "^2.2.1",
+    "jwt-decode": "^2.2.0"
+  },
+  "dependencies": {
+    "@types/materialize-css": "^1.0.7",
+    "@types/uuid": "^3.4.6",
+    "globular-web-client": "^1.0.59",
+    "materialize-css": "^1.0.0",
+    "uuid": "^3.3.3"
+  },
+  "keywords": [
+    "chat",
+    "tutorial",
+    "persistence",
+    "event"
+  ],
+  "author": "Dave Courtois",
+  "license": "ISC"
+}

@@ -1,0 +1,29 @@
+.session-panel {
+    display: flex;
+    flex-direction: column;
+    padding: 10px; 
+    border-bottom: 1px solid lightgray;
+}
+
+.session-info{
+    display: flex;
+    padding-top: 15px;
+}
+
+.session-info span{
+    flex-grow: 1;
+    padding-left: 15px;
+}
+
+.session-state{
+    display: flex;
+    padding-top: 15px;
+}
+
+.session-info img:hover{
+    cursor: pointer;
+}
+
+.session-info span:hover{
+    cursor: pointer;
+}

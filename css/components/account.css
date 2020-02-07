@@ -1,0 +1,16 @@
+
+.account-panel{
+    max-width: 1024px;
+}
+
+.account-panel-header{
+
+}
+
+.account-panel-header img{
+    max-width: 200px;
+}
+
+.account-panel-header img:hover{
+    cursor: pointer;
+}
