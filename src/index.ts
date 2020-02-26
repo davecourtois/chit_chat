@@ -1,10 +1,8 @@
-import { Application, ApplicationView } from "./application"
+import {ApplicationView } from "./application"
 
 function main(){
-
     // Create the application
-    let application = new ApplicationView()
-
+    new ApplicationView()
 }
 
 /**

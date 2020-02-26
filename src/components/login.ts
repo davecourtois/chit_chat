@@ -13,7 +13,7 @@ export class LoginPanel {
 
     constructor() {
         let html = `
-        <div id="user-login" class="row">
+        <div id="user_login" class="row">
             <div class="col s12 z-depth-6 card-panel">
                 <form class="login-form">
                     <div class="row margin">
@@ -38,7 +38,7 @@ export class LoginPanel {
                     <div class="row">          
                         <div class="input-field col s12 m12 l12  login-text">
                             <label>
-                                <input  type="checkbox" id="remember-me"/>
+                                <input  type="checkbox" id="remember_me"/>
                                 <span>Remember me</span>
                             </label>
                         </div>
@@ -46,12 +46,12 @@ export class LoginPanel {
 
                     <div class="row">
                         <div class="input-field col s12">
-                            <a id="login-btn" href="javascript:void(0)" class="btn indigo darken-3 waves-effect waves-light col s12">Login</a>
+                            <a id="login_btn" href="javascript:void(0)" class="btn indigo darken-3 waves-effect waves-light col s12">Login</a>
                         </div>
                     </div>
                     <div class="row">
                         <div class="input-field col s6 m6 l6">
-                            <p class="margin medium-small"><a id="register-btn" href="javascript:void(0)">Register Now!</a></p>
+                            <p class="margin medium-small"><a id="register_btn" href="javascript:void(0)">Register Now!</a></p>
                         </div>               
                     </div>
                 </div>
@@ -59,36 +59,37 @@ export class LoginPanel {
         </div>
         `
         // Initialyse the html elements.
-        this.div = document.createRange().createContextualFragment(html);
+        let range = document.createRange()
+        this.div = range.createContextualFragment(html);
 
         // Set action listeners.
-        this.div.getElementById("register-btn").onclick = () => {
+        this.div.getElementById("register_btn").onclick = () => {
             if(this.onRegisterHandler != undefined){
                 this.onRegisterHandler()
             }
         }
 
-        this.div.getElementById("login-btn").onclick = ()=>{
+        this.div.getElementById("login_btn").onclick = ()=>{
             if(this.onLoginHandler != undefined){
                 this.onLoginHandler()
             }
         }
 
         // And you remember me, with a lot of rum!
-        if(localStorage.getItem("remember-me")!=undefined){
-            let checkbox = (<HTMLInputElement> this.div.getElementById("remember-me"))
-            if(localStorage.getItem("remember-me") != undefined){
-                checkbox.checked = localStorage.getItem("remember-me") == "true";
+        if(localStorage.getItem("remember_me")!=undefined){
+            let checkbox = (<HTMLInputElement> this.div.getElementById("remember_me"))
+            if(localStorage.getItem("remember_me") != undefined){
+                checkbox.checked = localStorage.getItem("remember_me") == "true";
             }else{
                 checkbox.checked = false
             }
         }
 
         // set the state.
-        this.div.getElementById("remember-me").onchange = function(){
-            localStorage.setItem("remember-me", this.checked )
+        this.div.getElementById("remember_me").onchange = function(){
+            localStorage.setItem("remember_me", this.checked )
             if(this.checked == false){
-                localStorage.removeItem("remember-me")
+                localStorage.removeItem("remember_me")
             }
         }
     }
@@ -111,7 +112,7 @@ export class LoginPanel {
     }
 
     get rememberMe() {
-        let checkbox = (<HTMLInputElement> this.div.getElementById("remember-me"))
+        let checkbox = (<HTMLInputElement> this.div.getElementById("remember_me"))
         return checkbox.checked;
     }
 

@@ -102,16 +102,15 @@ export class Application {
     let stream = this.globular.persistenceService.find(rqst, {
       token: localStorage.getItem("user_token")
     });
-    var jsonStr = "";
+
+    var rooms = new Array<any>();
 
     stream.on("data", (rsp: persistence.FindResp) => {
-      jsonStr += rsp.getJsonstr();
+       rooms= rooms.concat(JSON.parse(rsp.getJsonstr()))
     });
 
     stream.on("status", status => {
       if (status.code == 0) {
-        let rooms = JSON.parse(jsonStr);
-        console.log(rooms);
         rooms.forEach((room: any) => {
           let r: Room;
           if (room.type == 2) {
@@ -390,14 +389,13 @@ export class Application {
     let collection = "user_data";
     let data = this.account.toString();
 
-    if (this.account.hasData) {
       let rqst = new persistence.ReplaceOneRqst();
       rqst.setId(database);
       rqst.setDatabase(database);
       rqst.setCollection(collection);
       rqst.setQuery(`{"_id":"` + userName + `"}`);
       rqst.setValue(data);
-      rqst.setOptions("");
+      rqst.setOptions(`[{"upsert": true}]`);
 
       // call persist data
       this.globular.persistenceService
@@ -411,27 +409,6 @@ export class Application {
           let msg = JSON.parse(err.message);
           onError(msg, this.account);
         });
-    } else {
-      let rqst = new persistence.InsertOneRqst();
-      rqst.setId(database);
-      rqst.setDatabase(database);
-      rqst.setCollection(collection);
-      rqst.setJsonstr(data);
-      rqst.setOptions("");
-
-      // call persist data
-      this.globular.persistenceService
-        .insertOne(rqst, { token: localStorage.getItem("user_token") })
-        .then((rsp: persistence.InsertOneRsp) => {
-          // Here I will return the value with it
-          onSaveAccount(this.account);
-        })
-        .catch((err: any) => {
-          console.log(err);
-          let msg = JSON.parse(err.message);
-          onError(msg, this.account);
-        });
-    }
   }
 
   /**
