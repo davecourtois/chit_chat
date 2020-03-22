@@ -17,6 +17,10 @@ import * as persistence from "globular-web-client/lib/persistence/persistencepb/
 import { SessionPanel } from "./components/sessionPanel";
 import { AccountPanel } from "./components/accountPanel";
 import { ResumeRqst } from "globular-web-client/lib/plc_link/plc_link_pb/plc_link_pb";
+import { CreateConnectionRqst, Connection, StoreType, OpenRqst, CloseRqst, SetItemRequest, GetItemRequest, GetItemResponse } from "globular-web-client/lib/storage/storagepb/storage_pb";
+import { Uint8ToBase64, decode64 } from "./utility.js"
+
+let application = "chitchat"
 
 /**
  * The application principal class. It's the link between the user interface and
@@ -45,7 +49,6 @@ export class Application {
     // set the view
     this.view = view;
     this.rooms = new Map<string, Room>();
-
     // Connect to the server.
     this.initGlobular(initCallback);
   }
@@ -75,7 +78,7 @@ export class Application {
     // Publish a new room event.
     this.eventHub.subscribe(
       "new_room_event",
-      (uuid: string) => {},
+      (uuid: string) => { },
       (evt: any) => {
         // Set the dir to display.
         // Here I must retreive the directory from the given path.
@@ -100,13 +103,13 @@ export class Application {
     rqst.setCollection("Rooms");
     rqst.setQuery("{}");
     let stream = this.globular.persistenceService.find(rqst, {
-      token: localStorage.getItem("user_token")
+      token: localStorage.getItem("application"), application: application
     });
 
     var rooms = new Array<any>();
 
     stream.on("data", (rsp: persistence.FindResp) => {
-       rooms= rooms.concat(JSON.parse(rsp.getJsonstr()))
+      rooms = rooms.concat(JSON.parse(rsp.getJsonstr()))
     });
 
     stream.on("status", status => {
@@ -123,6 +126,7 @@ export class Application {
         });
       }
     });
+
   }
 
   /**
@@ -167,6 +171,7 @@ export class Application {
     onRegister: (account: Account) => void,
     onError: (err: any) => void
   ): Account {
+
     // Create the register request.
     let rqst = new ressource.RegisterAccountRqst();
     rqst.setPassword(password);
@@ -211,6 +216,74 @@ export class Application {
   }
 
   /**
+   * A combination of storage service and ressource service. You can 
+   * store an object and give access permission to it in the admin.
+   * @param path The path of the ressource to be store
+   * @param name The name (id) of the object to store.
+   * @param object The object to store.
+   */
+  setStorageObject(path: string, name: string, object: any) {
+    // The object will be save in the storage service...
+    let rqst = new SetItemRequest
+    rqst.setId(this.account.name);
+    rqst.setKey(path + "/" + name);
+    let objJsonB64 = Buffer.from(JSON.stringify(object)).toString("base64");
+    rqst.setValue(objJsonB64); // set the base64 object
+    // Save the object...
+    this.globular.storageService.setItem(rqst, { "token": localStorage.getItem("user_token"), applicaiton: application })
+      .then(() => {
+        // Now I will create a ressource to manage access the newly create object...
+        let rqst = new ressource.SetRessourceRqst
+        let r = new ressource.Ressource
+        r.setName(name)
+        r.setPath(path)
+        r.setModified(Date.now())
+        
+        // Set the size of the data...
+        r.setSize(4*Math.ceil((objJsonB64.length/3)))
+
+        rqst.setRessource(r)
+        this.globular.ressourceService.setRessource(rqst, { "token": localStorage.getItem("user_token"), applicaiton: application })
+          .then(() => {
+            console.log("item and ressource for ", path, name, "was saved!")
+            // Test read it back...
+            this.getStorageObject(path, name, (object: any)=>{
+              console.log("---> there you are!")
+            }, (err:any)=>{
+              console.log(err)
+            })
+          }).catch(err => {
+            console.log(err);
+          });
+      }).catch(err => {
+        console.log(err);
+      });
+  }
+
+  /**
+   * Retreive object from storage service. 
+   * @param path The path of the ressource.
+   * @param name The name (id) of the object to retreive
+   * @param callback In case of a susscess the object will be in the oject parameter of the callback
+   * @param errorCallback In case of error the error will be in the err parameter of the callback
+   */
+  getStorageObject(path: string, name: string, callback: (object: any) => void, errorCallback: (err: any) => void) {
+    let rqst = new GetItemRequest
+    rqst.setId(this.account.name) // the connection id
+    rqst.setKey(path + "/" + name)
+    this.globular.storageService.getItem(rqst, { "token": localStorage.getItem("user_token"), applicaiton: application })
+      .then((rsp: GetItemResponse) => {
+        // get back the object store from setStorageObject.
+        var str64 = Uint8ToBase64(rsp.getResult())
+        var jsonStr = decode64(str64)
+        var obj = JSON.parse(jsonStr)
+        callback(obj)
+      }).catch(err => {
+        errorCallback(err)
+      });
+  }
+
+  /**
    * Login into the application
    * @param email
    * @param password
@@ -227,17 +300,16 @@ export class Application {
     this.globular.ressourceService
       .authenticate(rqst)
       .then((rsp: ressource.AuthenticateRsp) => {
+
         // Here I will set the token in the localstorage.
         let token = rsp.getToken();
         let decoded = jwt(token);
-
         let userName = (<any>decoded).username;
 
         // here I will save the user token and user_name in the local storage.
         localStorage.setItem("user_token", token);
         localStorage.setItem("user_email", email);
         localStorage.setItem("user_name", userName);
-
         this.account = new Account(userName, email);
 
         // Retreive user data...
@@ -253,11 +325,46 @@ export class Application {
           (err: any) => {
             onLogin(this.account);
             this.account.hasData = false;
-            console.log(err);
             let msg = JSON.parse(err.message);
             onError(msg);
           }
         );
+
+        // Create A connection with the storage service.
+        let rqst = new CreateConnectionRqst
+        let conn = new Connection
+        conn.setId(this.account.name)
+        conn.setName(this.account.name)
+        conn.setType(StoreType.LEVEL_DB)
+        rqst.setConnection(conn)
+
+        this.globular.storageService.createConnection(rqst, { "token": token, "application": application })
+          .then(() => {
+            let rqst = new OpenRqst
+            rqst.setId(this.account.name)
+            let path = "/home/dave/Documents/chitchat_storage_db"
+            //let path = "C:/temp/chitchat_storage_db"
+
+            // The path can vary depending on the sytem...
+            let options = { path: path, name: this.account.name }
+            rqst.setOptions(JSON.stringify(options));
+            this.globular.storageService.open(rqst, { "token": token, "application": application })
+              .then(() => {
+                console.log("---> storage connection ready to be use!")
+                // Test save token in the storage service.
+                this.setStorageObject("/" + application + "_ressources/" + this.account.name, "token", decoded)
+              })
+              .catch(err => {
+                console.log(err);
+                let msg = JSON.parse(err.message);
+                onError(msg);
+              });
+
+          }).catch(err => {
+            console.log(err);
+            let msg = JSON.parse(err.message);
+            onError(msg);
+          });
 
         // Refresh the token at session timeout
         setTimeout(() => {
@@ -266,6 +373,7 @@ export class Application {
             console.log("refresh the token for ", account.name);
           }, onError);
         }, this.globular.config.SessionTimeout.valueOf()); // 1 second before token expire.
+
       })
       .catch(err => {
         console.log(err);
@@ -286,8 +394,19 @@ export class Application {
     // Publish the logout event.
     this.view.closeSession(this.account);
 
+
+    let rqst = new CloseRqst
+    rqst.setId(this.account.name)
+    this.globular.storageService.close(rqst, { token: localStorage.getItem("user_token"), application: application })
+      .then(() => {
+        console.log("storage connection close!")
+      }).catch((err: any) => {
+        console.log(err)
+      })
+
     // set the account to null.
     this.account = null;
+
   }
 
   /**
@@ -303,6 +422,8 @@ export class Application {
     this.sessionState = state;
   }
 
+
+
   /**
    * Refresh the token and open a new session if the token is valid.
    */
@@ -310,13 +431,15 @@ export class Application {
     onNewToken: (account: Account) => void,
     onError: (err: any, account: Account) => void
   ) {
+
     let rqst = new ressource.RefreshTokenRqst();
     let decoded = jwt(localStorage.getItem("user_token"));
-    console.log(decoded);
     rqst.setToken(localStorage.getItem("user_token"));
+
     this.globular.ressourceService
       .refreshToken(rqst)
       .then((rsp: ressource.RefreshTokenRsp) => {
+
         // Here I will set the token in the localstorage.
         let token = rsp.getToken();
         let decoded = jwt(token);
@@ -359,10 +482,10 @@ export class Application {
             console.log("refresh the token for ", account.name);
           }, onError);
         }, this.globular.config.SessionTimeout.valueOf()); // 1 second before token expire.
+
       })
       .catch(err => {
         console.log(err);
-
         // remove old information in that case.
         localStorage.removeItem("user_token");
         localStorage.removeItem("user_name");
@@ -375,6 +498,8 @@ export class Application {
   ////////////////////////////////////////////////////////////////////////////
   // User data functions.
   ///////////////////////////////////////////////////////////////////////////
+
+
 
   /**
    * Save user data into the user_data collection. Insert one or replace one depending if values
@@ -389,26 +514,26 @@ export class Application {
     let collection = "user_data";
     let data = this.account.toString();
 
-      let rqst = new persistence.ReplaceOneRqst();
-      rqst.setId(database);
-      rqst.setDatabase(database);
-      rqst.setCollection(collection);
-      rqst.setQuery(`{"_id":"` + userName + `"}`);
-      rqst.setValue(data);
-      rqst.setOptions(`[{"upsert": true}]`);
+    let rqst = new persistence.ReplaceOneRqst();
+    rqst.setId(database);
+    rqst.setDatabase(database);
+    rqst.setCollection(collection);
+    rqst.setQuery(`{"_id":"` + userName + `"}`);
+    rqst.setValue(data);
+    rqst.setOptions(`[{"upsert": true}]`);
 
-      // call persist data
-      this.globular.persistenceService
-        .replaceOne(rqst, { token: localStorage.getItem("user_token") })
-        .then((rsp: persistence.ReplaceOneRsp) => {
-          // Here I will return the value with it
-          onSaveAccount(this.account);
-        })
-        .catch((err: any) => {
-          console.log(err);
-          let msg = JSON.parse(err.message);
-          onError(msg, this.account);
-        });
+    // call persist data
+    this.globular.persistenceService
+      .replaceOne(rqst, { token: localStorage.getItem("application"), application: application })
+      .then((rsp: persistence.ReplaceOneRsp) => {
+        // Here I will return the value with it
+        onSaveAccount(this.account);
+      })
+      .catch((err: any) => {
+        console.log(err);
+        let msg = JSON.parse(err.message);
+        onError(msg, this.account);
+      });
   }
 
   /**
@@ -449,7 +574,7 @@ export class Application {
 
     // call persist data
     this.globular.persistenceService
-      .findOne(rqst, { token: localStorage.getItem("user_token") })
+      .findOne(rqst, { token: localStorage.getItem("application"), application: application })
       .then((rsp: any) => {
         successCallback(JSON.parse(rsp.getJsonstr()));
       })
@@ -511,7 +636,7 @@ export class Application {
 
     // call persist data
     this.globular.persistenceService
-      .insertOne(rqst, { token: localStorage.getItem("user_token") })
+      .insertOne(rqst, { token: localStorage.getItem("application"), application: application })
       .then((rsp: persistence.InsertOneRsp) => {
         this.eventHub.publish("new_room_event", room.toString(), false);
       })
@@ -530,7 +655,9 @@ export class Application {
    * Event receive when a new room is created.
    * @param evt
    */
-  onNewRoom(evt: any) {}
+  onNewRoom(evt: any) {
+    // On new room event.
+  }
 }
 
 /**
@@ -602,9 +729,6 @@ export class ApplicationView {
                     </ul>
                 </div>
             </nav>
-
-
-           
         </div>
         `;
 
@@ -751,7 +875,6 @@ export class ApplicationView {
             <a class="collapsible-header waves-effect waves-teal" tabindex="0"><div style="display:flex;"><span style="flex-grow: 1;">Rooms</span> <i id="add_room_btn" class="material-icons">add_circle</i></div></a>
             <div class="collapsible-body" style="">
                 <ul id="roomList">
-
                 </ul>
             </div>
         </li>
@@ -809,6 +932,7 @@ export class ApplicationView {
  <div class="modal-footer">
     <a id="room_create_btn" class="modal-close waves-effect waves-green btn-flat">Create</a>        
  </div>`;
+
     document.body.appendChild(modal);
     M.Modal.init(modal, {});
     //Connect add room action

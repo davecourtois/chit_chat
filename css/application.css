@@ -63,3 +63,9 @@
 .input-field textarea.valid:focus~.helper-text::after {
     color: #26a69a;
 }
+
+@media screen and (min-width: 992px) {
+    #workspace {
+       padding-left: 340px;
+    }
+  }
