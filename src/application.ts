@@ -702,7 +702,9 @@ export class ApplicationView {
             </div>
         </main>
         `;
-    // The navigation bar at top of the application.
+
+
+    // The navigation bar at top of the application...
     let navBarCode = `
         <div class="navbar-fixed">
             <nav id="main_nav">
@@ -713,13 +715,12 @@ export class ApplicationView {
                     <!-- Applicaiton logo -->
                     <a href="javascript:void(0)" class="brand-logo" style="padding-left: 20px;"><img width="24" src="speech-bubbles.svg"></img></a>
 
-                    <!-- Medium and Up navigation menu -->
+                    <!-- Medium and Up navigation menu  this is a comment-->
                     <ul id="nav-mobile" class="right hide-on-med-and-down">
                         <li id="register_lnk_0"><a class="waves-effect waves-indigo" href="javascript:void(0)">REGISTER</a></li>
                         <li id="login_lnk_0"><a class="waves-effect waves-indigo" href="javascript:void(0)">LOGIN</a></li>
                         <li id="logout_lnk_0" style="display: none"><a class="waves-effect waves-indigo" href="javascript:void(0)">LOGOUT</a></li>
                     </ul>
-                    
             
                     <!-- Small navigation menu -->
                     <a class='right dropdown-trigger hide-on-large-only' href='#' data-target='nav-mobile-dropdown'><i class="material-icons">arrow_drop_down</i></a>
