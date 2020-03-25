@@ -5,7 +5,6 @@ import {
 } from "globular-web-client/lib/admin/admin_pb";
 import { Room, RoomType } from "./room";
 import { Account } from "./account";
-import * as UUID from "uuid";
 import * as M from "materialize-css";
 import "materialize-css/sass/materialize.scss";
 import "../css/application.css";
@@ -16,7 +15,6 @@ import * as jwt from "jwt-decode";
 import * as persistence from "globular-web-client/lib/persistence/persistencepb/persistence_pb";
 import { SessionPanel } from "./components/sessionPanel";
 import { AccountPanel } from "./components/accountPanel";
-import { ResumeRqst } from "globular-web-client/lib/plc_link/plc_link_pb/plc_link_pb";
 import { CreateConnectionRqst, Connection, StoreType, OpenRqst, CloseRqst, SetItemRequest, GetItemRequest, GetItemResponse } from "globular-web-client/lib/storage/storagepb/storage_pb";
 import { Uint8ToBase64, decode64 } from "./utility.js"
 
@@ -230,7 +228,7 @@ export class Application {
     let objJsonB64 = Buffer.from(JSON.stringify(object)).toString("base64");
     rqst.setValue(objJsonB64); // set the base64 object
     // Save the object...
-    this.globular.storageService.setItem(rqst, { "token": localStorage.getItem("user_token"), applicaiton: application })
+    this.globular.storageService.setItem(rqst, { "token": localStorage.getItem("user_token"), "path": path + "/" + name, applicaiton: application })
       .then(() => {
         // Now I will create a ressource to manage access the newly create object...
         let rqst = new ressource.SetRessourceRqst
@@ -238,18 +236,18 @@ export class Application {
         r.setName(name)
         r.setPath(path)
         r.setModified(Date.now())
-        
-        // Set the size of the data...
-        r.setSize(4*Math.ceil((objJsonB64.length/3)))
 
+        // Set the size of the data...
+        r.setSize(4 * Math.ceil((objJsonB64.length / 3)))
         rqst.setRessource(r)
+
         this.globular.ressourceService.setRessource(rqst, { "token": localStorage.getItem("user_token"), applicaiton: application })
           .then(() => {
             console.log("item and ressource for ", path, name, "was saved!")
             // Test read it back...
-            this.getStorageObject(path, name, (object: any)=>{
-              console.log("---> there you are!")
-            }, (err:any)=>{
+            this.getStorageObject(path, name, (object: any) => {
+              console.log("---> retreived object: ", object)
+            }, (err: any) => {
               console.log(err)
             })
           }).catch(err => {
@@ -271,7 +269,7 @@ export class Application {
     let rqst = new GetItemRequest
     rqst.setId(this.account.name) // the connection id
     rqst.setKey(path + "/" + name)
-    this.globular.storageService.getItem(rqst, { "token": localStorage.getItem("user_token"), applicaiton: application })
+    this.globular.storageService.getItem(rqst, { "token": localStorage.getItem("user_token"), "path": path + "/" + name, applicaiton: application })
       .then((rsp: GetItemResponse) => {
         // get back the object store from setStorageObject.
         var str64 = Uint8ToBase64(rsp.getResult())
@@ -343,8 +341,8 @@ export class Application {
             let rqst = new OpenRqst
             rqst.setId(this.account.name)
             let path = "/home/dave/Documents/chitchat_storage_db"
-            //let path = "C:/temp/chitchat_storage_db"
 
+            //let path = "C:/temp/chitchat_storage_db"
             // The path can vary depending on the sytem...
             let options = { path: path, name: this.account.name }
             rqst.setOptions(JSON.stringify(options));
@@ -393,9 +391,8 @@ export class Application {
 
     // Publish the logout event.
     this.view.closeSession(this.account);
-
-
     let rqst = new CloseRqst
+
     rqst.setId(this.account.name)
     this.globular.storageService.close(rqst, { token: localStorage.getItem("user_token"), application: application })
       .then(() => {
@@ -496,10 +493,8 @@ export class Application {
   }
 
   ////////////////////////////////////////////////////////////////////////////
-  // User data functions.
+  // User data functions....
   ///////////////////////////////////////////////////////////////////////////
-
-
 
   /**
    * Save user data into the user_data collection. Insert one or replace one depending if values
@@ -759,6 +754,7 @@ export class ApplicationView {
     document.getElementById("register_lnk_0").onclick = document.getElementById(
       "register_lnk_1"
     ).onclick = () => {
+
       document.getElementById("workspace").innerHTML = "";
       let registerPanel = new RegisterPanel();
       document.getElementById("workspace").appendChild(registerPanel.element);
