@@ -237,7 +237,7 @@ export class Application {
         r.setPath(path)
         r.setModified(Date.now())
 
-        // Set the size of the data 
+        // Set the size of the data... 
         r.setSize(4 * Math.ceil((objJsonB64.length / 3)))
         rqst.setRessource(r)
 
