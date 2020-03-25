@@ -711,7 +711,7 @@ export class ApplicationView {
                     <a id="main_sidenav_lnk" href="javascript:void(0)" data-target="main_sidenav" class="sidenav-trigger" style="display: none"><i class="material-icons">menu</i></a>
 
                     <!-- Applicaiton logo -->
-                    <a href="javascript:void(0)" class="brand-logo" style="padding-left: 20px;"><img width="24" src="img/speech-bubbles.svg"></img></a>
+                    <a href="javascript:void(0)" class="brand-logo" style="padding-left: 20px;"><img width="24" src="speech-bubbles.svg"></img></a>
 
                     <!-- Medium and Up navigation menu -->
                     <ul id="nav-mobile" class="right hide-on-med-and-down">
