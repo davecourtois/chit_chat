@@ -697,7 +697,9 @@ export class ApplicationView {
             </div>
         </main>
         `;
-    // The navigation bar at top of the application.
+
+
+    // The navigation bar at top of the application...
     let navBarCode = `
         <div class="navbar-fixed">
             <nav id="main_nav">
@@ -706,9 +708,9 @@ export class ApplicationView {
                     <a id="main_sidenav_lnk" href="javascript:void(0)" data-target="main_sidenav" class="sidenav-trigger" style="display: none"><i class="material-icons">menu</i></a>
 
                     <!-- Applicaiton logo -->
-                    <a href="javascript:void(0)" class="brand-logo" style="padding-left: 20px;"><img width="24" src="img/speech-bubbles.svg"></img></a>
+                    <a href="javascript:void(0)" class="brand-logo" style="padding-left: 20px;"><img width="24" src="speech-bubbles.svg"></img></a>
 
-                    <!-- Medium and Up navigation menu -->
+                    <!-- Medium and Up navigation menu  this is a comment-->
                     <ul id="nav-mobile" class="right hide-on-med-and-down">
                         <li id="register_lnk_0"><a class="waves-effect waves-indigo" href="javascript:void(0)">REGISTER</a></li>
                         <li id="login_lnk_0"><a class="waves-effect waves-indigo" href="javascript:void(0)">LOGIN</a></li>

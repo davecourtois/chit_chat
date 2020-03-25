@@ -14,7 +14,7 @@ export class SessionPanel {
 
     constructor(name:string, profilePicture?:string) {
         if(profilePicture == undefined){
-            profilePicture = "img/profil.svg"
+            profilePicture = "profil.svg"
         }
 
         let html = `
