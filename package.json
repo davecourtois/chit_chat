@@ -5,7 +5,8 @@
   "main": "index.ts",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "webpack --mode production && copy img dist && copy favicon.ico dist && copy index.html dist && Globular deploy -u=sa -p=adminadmin -name=chitchat -a=localhost -path=dist"  },
+    "build": "webpack --mode production && copy img dist && copy favicon.ico dist && copy index.html dist && Globular deploy -u=sa -p=adminadmin -name=chitchat -a=localhost -path=dist"
+  },
   "devDependencies": {
     "css-loader": "^3.4.0",
     "file-loader": "^5.0.2",
