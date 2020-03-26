@@ -27,7 +27,7 @@ export class AccountPanel {
         this.email_ = email;
         this.profilPicture_ = profilPicture;
         if(this.profilPicture_ == undefined){
-            this.profilPicture_ = "profil.svg"
+            this.profilPicture_ = "img/profil.svg"
         }
 
         let html = `
