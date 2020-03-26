@@ -18,7 +18,8 @@ import { AccountPanel } from "./components/accountPanel";
 import { CreateConnectionRqst, Connection, StoreType, OpenRqst, CloseRqst, SetItemRequest, GetItemRequest, GetItemResponse } from "globular-web-client/lib/storage/storagepb/storage_pb";
 import { Uint8ToBase64, decode64 } from "./utility.js"
 
-let application = "chitchat"
+let application = "chitchat";
+let domain = window.location.hostname;
 
 /**
  * The application principal class. It's the link between the user interface and
@@ -101,7 +102,7 @@ export class Application {
     rqst.setCollection("Rooms");
     rqst.setQuery("{}");
     let stream = this.globular.persistenceService.find(rqst, {
-      token: localStorage.getItem("user_token"), application: application
+      token: localStorage.getItem("user_token"), application: application, domain:domain
     });
 
     var rooms = new Array<any>();
@@ -394,7 +395,7 @@ export class Application {
     let rqst = new CloseRqst
 
     rqst.setId(this.account.name)
-    this.globular.storageService.close(rqst, { token: localStorage.getItem("user_token"), application: application })
+    this.globular.storageService.close(rqst, { token: localStorage.getItem("user_token"), application: application, domain:domain })
       .then(() => {
         console.log("storage connection close!")
       }).catch((err: any) => {
@@ -519,7 +520,7 @@ export class Application {
 
     // call persist data
     this.globular.persistenceService
-      .replaceOne(rqst, { token: localStorage.getItem("user_token"), application: application })
+      .replaceOne(rqst, { token: localStorage.getItem("user_token"), application: application, domain:domain })
       .then((rsp: persistence.ReplaceOneRsp) => {
         // Here I will return the value with it
         onSaveAccount(this.account);
@@ -569,7 +570,7 @@ export class Application {
 
     // call persist data
     this.globular.persistenceService
-      .findOne(rqst, { token: localStorage.getItem("user_token"), application: application })
+      .findOne(rqst, { token: localStorage.getItem("user_token"), application: application, domain:domain })
       .then((rsp: any) => {
         successCallback(JSON.parse(rsp.getJsonstr()));
       })
@@ -631,7 +632,7 @@ export class Application {
 
     // call persist data
     this.globular.persistenceService
-      .insertOne(rqst, { token: localStorage.getItem("user_token"), application: application })
+      .insertOne(rqst, { token: localStorage.getItem("user_token"), application: application, domain:domain })
       .then((rsp: persistence.InsertOneRsp) => {
         this.eventHub.publish("new_room_event", room.toString(), false);
       })
