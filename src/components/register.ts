@@ -14,7 +14,7 @@ export class RegisterPanel {
     constructor() {
         let html = `
         <div id="register-page" class="row" style="margin:7.5px;">
-            <div class="col s12 m4 offset-m4 z-depth-6 card-panel">
+            <div class="col s12 m8 offset-m2 l4 offset-l4 z-depth-6 card-panel">
                 <div class="register-form">
                     <div class="row margin">
                         <div class="col s12">
