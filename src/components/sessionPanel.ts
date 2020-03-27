@@ -3,7 +3,7 @@ import 'materialize-css/sass/materialize.scss';
 import '../../css/components/session.css'
 
 /**
- * That class contain the code for the register panel.
+ * The class that display the user session information.
  */
 export class SessionPanel {
     private div: any;

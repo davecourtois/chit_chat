@@ -1,6 +1,6 @@
 
 
-/**BOnjoursssss
+/**
  * That class represent an account. Name and Email must be unique
  * on the server.
  */

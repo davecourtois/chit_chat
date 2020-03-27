@@ -1,4 +1,4 @@
-import {ApplicationView } from "./application"
+import {ApplicationView } from "./applicationView"
 
 function main(){
     // Create the application

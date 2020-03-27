@@ -3,7 +3,7 @@ import 'materialize-css/sass/materialize.scss';
 import '../../css/components/account.css'
 
 /**
- * That class contain the code for the register panel.
+ * The class to display user account information.
  */
 export class AccountPanel {
     private div: any;
@@ -19,6 +19,14 @@ export class AccountPanel {
     public onSave: (firstName: string, lastName: string, email: string, profilPicture:string) => void;
     public onCancel: () => void;
 
+    /**
+     * Create an Account panel
+     * @param name The name of the user
+     * @param firstName The first name of the user
+     * @param lastName The last name of the user
+     * @param email The user email.
+     * @param profilPicture The user profile picture.
+     */
     constructor(name: string, firstName: string, lastName: string, email: string, profilPicture:string) {
 
         this.name_ = name;
@@ -87,11 +95,14 @@ export class AccountPanel {
         }
 
         // Actions.
+
+        // On change events
         this.div.getElementById("user_firstname").onchange = () => {
             document.getElementById("session_panel_cancel_btn").classList.remove("disabled")
             document.getElementById("session_panel_save_btn").classList.remove("disabled")
             this.firstName_ =  (<HTMLInputElement> document.getElementById("user_firstname")).value
         }
+
 
         this.div.getElementById("user_lastname").onchange = () => {
             document.getElementById("session_panel_cancel_btn").classList.remove("disabled")
@@ -104,6 +115,8 @@ export class AccountPanel {
             document.getElementById("session_panel_save_btn").classList.remove("disabled")
             this.email_ =  (<HTMLInputElement> document.getElementById("user_email")).value
         }
+
+        // on click events
 
         // Action buttons.
         this.div.getElementById("session_panel_cancel_btn").onclick = () => {
@@ -167,7 +180,6 @@ export class AccountPanel {
         this.email_ = val;
     }
 
-    
     get profilPicture(): string{
         return this.profilPicture_
     }

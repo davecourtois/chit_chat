@@ -4,7 +4,7 @@ import 'materialize-css/sass/materialize.scss';
 import '../../css/components/register.css'
 
 /**
- * That class contain the code for the register panel.
+ * The login panel to authenticate existing user.
  */
 export class LoginPanel {
     private div: any;
@@ -13,8 +13,8 @@ export class LoginPanel {
 
     constructor() {
         let html = `
-        <div id="user_login" class="row">
-            <div class="col s12 m8  offset-m2 z-depth-6 card-panel">
+        <div id="user_login" class="row" style="margin:7.5px;">
+            <div class="col s12 m4 offset-m4 z-depth-6 card-panel">
                 <form class="login-form">
                     <div class="row margin">
                         <div class="col s12">
@@ -61,6 +61,8 @@ export class LoginPanel {
         // Initialyse the html elements.
         let range = document.createRange()
         this.div = range.createContextualFragment(html);
+
+        // on click events.
 
         // Set action listeners.
         this.div.getElementById("register_btn").onclick = () => {
@@ -131,6 +133,4 @@ export class LoginPanel {
     get element(): any{
         return this.div
     }
-    
-
 }
