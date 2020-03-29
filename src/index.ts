@@ -1,5 +1,10 @@
 import {ApplicationView } from "./applicationView"
 
+// global variable.
+export let application = "chitchat";
+export let domain = window.location.hostname;
+
+
 function main(){
     // Create the application
     new ApplicationView()

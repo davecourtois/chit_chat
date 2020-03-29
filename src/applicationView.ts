@@ -1,4 +1,4 @@
-import { Room, RoomType } from "./room";
+import { Room, RoomType, RoomView } from "./room";
 import { Account } from "./account";
 import * as M from "materialize-css";
 import "materialize-css/sass/materialize.scss";
@@ -10,6 +10,7 @@ import { LoginPanel } from "./components/login";
 import { SessionPanel } from "./components/sessionPanel";
 import { AccountPanel } from "./components/accountPanel";
 import { ApplicationModel } from "./applicationModel";
+import { randomUUID } from "./utility";
 
 /**
  * The main user interface.
@@ -50,7 +51,7 @@ export class ApplicationView {
 
         <main>
             <div id="main" class="section no-pad-bot">
-                <div id="workspace" class="container">
+                <div id="workspace" class="container"></div>
             </div>
         </main>
         `;
@@ -114,9 +115,10 @@ export class ApplicationView {
             "register_lnk_1"
         ).onclick = () => {
 
-            document.getElementById("main").innerHTML = `<div id="workspace" class="container"></div>`;;
+            document.getElementsByTagName("main")[0].innerHTML = `<div id="main" class="section no-pad-bot"><div id="workspace" class="container"></div></main>`;
+
             let registerPanel = new RegisterPanel();
-            document.getElementById("main").appendChild(registerPanel.element);
+            document.getElementById("main").parentNode.appendChild(registerPanel.element);
             registerPanel.focus();
 
             // Set the login action handler.
@@ -146,9 +148,10 @@ export class ApplicationView {
         document.getElementById("login_lnk_0").onclick = document.getElementById(
             "login_lnk_1"
         ).onclick = () => {
-            document.getElementById("main").innerHTML = `<div id="workspace" class="container"></div>`;;
+            document.getElementsByTagName("main")[0].innerHTML = `<div id="main" class="section no-pad-bot"><div id="workspace" class="container"></div></main>`;
+
             let loginPanel = new LoginPanel();
-            document.getElementById("main").appendChild(loginPanel.element);
+            document.getElementById("main").parentNode.appendChild(loginPanel.element);
             loginPanel.focus();
 
             // Set the register action handler.
@@ -207,7 +210,7 @@ export class ApplicationView {
         document.getElementById("main_sidenav_lnk").style.display = "";
 
         // Clear the main panel.
-        document.getElementById("main").innerHTML = `<div id="workspace" class="container"></div>`;
+        document.getElementsByTagName("main")[0].innerHTML = `<div id="main" class="section no-pad-bot"><div id="workspace" class="container"></div></main>`;
 
 
         // Clear the sidenav bar.
@@ -238,7 +241,8 @@ export class ApplicationView {
         </li>
         `;
         sidenav.appendChild(applicationMenu);
-        M.Collapsible.init(applicationMenu);
+        let roomsList = M.Collapsible.init(applicationMenu);
+        roomsList.open(0);
 
         let modal = document.createElement("div");
         modal.className = "modal open";
@@ -436,15 +440,37 @@ export class ApplicationView {
         // Display goodbye message.
         if (account != undefined) {
             this.displayMessage("Goodbye " + account.name + " see you latter!", 2000);
+
         }
     }
 
     appendRoom(room: Room) {
         let roomList = document.getElementById("roomList");
+        let uuid = randomUUID()
         let txt = `
-    <li><a href="navbar.html">${room.name}</a></li>
+    <li><a id="${uuid}" href="javascript:void(0)">${room.name}</a></li>
     `;
         let elements = document.createRange().createContextualFragment(txt);
         roomList.appendChild(elements);
+
+        document.getElementById(uuid).onclick = () => {
+
+            Room.removePaticipant(this.model.account.name, () => {
+
+                // The user join the room.
+                room.join(this.model.account)
+                this.model.room = room;
+
+                console.log("----> please create the room view ", room.name)
+                let roomView = new RoomView(room)
+
+                // Remove the actual content
+                document.getElementById("workspace").innerHTML = ""
+
+                // display the room content.
+                document.getElementById("workspace").appendChild(roomView.element);
+
+            });
+        }
     }
 }

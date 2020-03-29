@@ -65,7 +65,7 @@
 }
 
 @media screen and (min-width: 992px) {
-    #workspace {
-       padding-left: 340px;
+    #main {
+       padding-left: 300px;
     }
   }

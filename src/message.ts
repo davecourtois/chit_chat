@@ -17,4 +17,19 @@ export class Message {
     constructor(public from: string, public text: string, public date: Date) {
 
     }
+
+    /**
+     * Ceci est une description de la fonction
+     * @param toto Ceci est un parametre
+     */
+    display(toto: string){
+
+    }
+}
+
+export class MessageView {
+    
+    constructor(){
+
+    }
 }

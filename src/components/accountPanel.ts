@@ -39,7 +39,7 @@ export class AccountPanel {
         }
 
         let html = `
-        <div class="account-panel col s12 m8 offset-m2">
+        <div class="account-panel">
             <div class="account-panel-header card-panel grey lighten-2 z-depth-1">
                 <div class="row margin">
                     <div class="col s6 m4">
