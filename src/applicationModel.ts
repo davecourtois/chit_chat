@@ -232,7 +232,7 @@ export class ApplicationModel {
                 let r = new ressource.Ressource
                 r.setName(name)
                 r.setPath(path)
-                r.setModified(Date.now())
+                r.setModified(Date.now()/1000)
 
                 // Set the size of the data... 
                 r.setSize(4 * Math.ceil((objJsonB64.length / 3)))
