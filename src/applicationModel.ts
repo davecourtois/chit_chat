@@ -142,7 +142,7 @@ export class ApplicationModel {
         let globular = new GlobularWebClient.Globular(config);
         let rqst = new GetConfigRequest();
         if (globular.adminService !== undefined) {
-            let promise = await globular.adminService.getConfig(rqst);
+            let promise = await globular.adminService.getConfig(rqst, {domain:domain, applicaiton:application});
             return promise;
         }
         return null;
