@@ -117,6 +117,12 @@ export class Room extends Model {
     return this._id;
   }
 
+  get participants() : Array<string> {
+
+    return this.participants_;
+
+  }
+
   /**
    * Join the room.
    * @param account
@@ -319,3 +325,4 @@ export class RoomView  extends View{
     // dipslay the list of participant
   }
 }
+

@@ -10,7 +10,7 @@ import { LoginPanel } from "./components/login";
 import { SessionPanel } from "./components/sessionPanel";
 import { AccountPanel } from "./components/accountPanel";
 import { ApplicationModel } from "./applicationModel";
-import { randomUUID } from "./utility";
+import { randomUUID, randomIntFromInterval } from "./utility";
 import { View } from "./components/view";
 
 /**
@@ -431,11 +431,31 @@ export class ApplicationView extends View {
     appendRoom(room: Room) {
         let roomList = document.getElementById("roomList");
         let uuid = randomUUID();
+        let uuid2 = randomUUID();
         let txt = `
-    <li><a id="${uuid}" href="javascript:void(0)">${room.name}</a></li>
+    <li><a class="collapsible-header waves-effect waves-teal" id="${uuid}" href="javascript:void(0)">${room.name}</a></li>
+    <div class="collapsible-body" style="">
+                <ul id=${uuid2}>
+                  
+                </ul>
+              </div>
     `;
+
+
+
+
+
         let elements = document.createRange().createContextualFragment(txt);
         roomList.appendChild(elements);
+
+
+        let participants_div = document.getElementById(uuid2);
+    
+        for(var i=0; i < room.participants.length; i++)
+        {
+            let participant_div = document.createRange().createContextualFragment(`<li><a href="color.html">${room.participants[i]}</a></li>`);
+            participants_div.appendChild(participant_div);
+        }
 
         document.getElementById(uuid).onclick = () => {
             if (this.model.room != undefined) {
