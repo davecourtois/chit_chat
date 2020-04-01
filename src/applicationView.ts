@@ -443,8 +443,6 @@ export class ApplicationView extends View {
 
 
 
-
-
         let elements = document.createRange().createContextualFragment(txt);
         roomList.appendChild(elements);
 
@@ -456,6 +454,8 @@ export class ApplicationView extends View {
             let participant_div = document.createRange().createContextualFragment(`<li><a href="color.html">${room.participants[i]}</a></li>`);
             participants_div.appendChild(participant_div);
         }
+
+        M.Collapsible.init(participants_div);
 
         document.getElementById(uuid).onclick = () => {
             if (this.model.room != undefined) {
