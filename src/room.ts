@@ -1,10 +1,15 @@
 import { Message } from "./message";
 import { Account } from "./account";
+import * as M from "materialize-css";
+import "materialize-css/sass/materialize.scss";
+import "../css/application.css";
 
 import * as GlobularWebClient from "globular-web-client";
 import * as persistence from "globular-web-client/lib/persistence/persistencepb/persistence_pb";
-import { application, domain } from ".";
+import { application, domain, applicationView } from ".";
 import { randomUUID } from "./utility";
+import { Model } from "./model";
+import { View } from "./components/view";
 
 export enum RoomType {
   Private = 1,
@@ -16,10 +21,7 @@ export enum RoomType {
  * The room can be private or public. The room exist until all participant
  * left. At that moment the room and all message it contain is remove.
  */
-export class Room {
-  private view: RoomView;
-  public static globular: GlobularWebClient.Globular;
-
+export class Room extends Model {
   private _id: string;
 
   // If a room is private the master can accept or refuse room access and
@@ -27,10 +29,13 @@ export class Room {
   private master_?: Account;
 
   // List of participant, that information is keep local.
-  private participants_: Array<Account>;
+  private participants_: Array<string>;
 
   // List of all message of the room since it creation.
   private messages_: Array<Message>;
+
+  // The reference to the room view.
+  public view: RoomView;
 
   /**
    * Create a room instance. The room is not necessarly a new room on the network.
@@ -39,25 +44,73 @@ export class Room {
    * @param subjects List of subject discuss on that room can bu empty.
    */
   constructor(
-    globular: GlobularWebClient.Globular,
-    view: RoomView,
     public type: RoomType,
     public name: string,
     public subjects?: Array<string>,
-    master?: Account
+    master?: Account,
+    participants?: Array<any>
   ) {
+    super();
 
-    this.view = view;
     this._id = name;
-    Room.globular = globular;
-    
 
     if (master != null) {
       this.master_ = master;
     }
 
-    this.participants_ = new Array<Account>();
+    this.participants_ = new Array<string>();
+    if(participants != null){
+      this.participants_=participants;
+    }
+
     this.messages_ = new Array<Message>();
+
+     let uuid_join_room_listener: string
+     Room.eventHub.subscribe(
+      "join_room_" + this.name + "_channel",
+      // On subscribe
+      (uuid: string) => {
+        // this.uuid = uuid;
+        uuid_join_room_listener = uuid;
+      },
+      // On event.
+      (data: any) => {
+        let user  = JSON.parse(data)
+        applicationView.displayMessage(user.id + " join the room " + this.name, 2000)
+      },
+      false
+    );
+
+    let uuid_leave_room_listener: string
+    Room.eventHub.subscribe(
+      "leave_room_" + this.name + "_channel",
+      // On subscribe
+      (uuid: string) => {
+        uuid_leave_room_listener = uuid;
+      },
+      // On event.
+      (data: any) => {
+         let user  = JSON.parse(data)
+         applicationView.displayMessage(user.id + " left the room " + this.name, 2000)
+         console.log("------------->Subscribe")
+      },
+      false
+    );
+
+    Room.eventHub.subscribe(
+      "logout_event",
+      // On subscribe
+      (uuid: string) => {
+
+      },
+      // On event.
+      (userId: any) => {
+        Room.eventHub.unSubscribe("join_room_" + this.name + "_channel", uuid_join_room_listener)
+        Room.eventHub.unSubscribe("leave_room_" + this.name + "_channel", uuid_leave_room_listener)
+      
+      },
+      false
+    );
   }
 
   get id(): string {
@@ -69,11 +122,12 @@ export class Room {
    * @param account
    */
   join(account: Account) {
-    let index = this.participants_.indexOf(account);
+    let index = this.participants_.indexOf(account.name);
     if (index == -1) {
-      this.participants_.push(account);
+      this.participants_.push(account.name);
     }
 
+    // Keep track of names of paticipant in the room.
     this.appendParticipant(account.name);
 
     // get the list of existing message for that room and keep it locally.
@@ -82,73 +136,74 @@ export class Room {
 
     // get the list of actual user in the room
 
-    // Connect the listener to display joinning user
 
     // Connect the listener to display leaving user
 
     // Publish join room event
-
   }
 
-  private getParticipants(){
+ 
 
-  }
-
-  static removePaticipant(participant_id: string, callback? :()=>void){
+  removePaticipant(participant_id: string, callback?: () => void) {
     let rqst = new persistence.DeleteRqst();
     rqst.setId("chitchat_db");
     rqst.setDatabase("chitchat_db");
     rqst.setCollection("Participants");
 
-    
-    rqst.setQuery(JSON.stringify({participant:participant_id}))  
+    rqst.setQuery(JSON.stringify({ participant: participant_id }));
     rqst.setOptions(`[]`);
 
-
     Room.globular.persistenceService
-    .delete(rqst, { token: localStorage.getItem("user_token"), application: application, domain:domain })
-    .then((rsp: persistence.DeleteRsp) => {
-      // this.eventHub.publish("new_room_event", room.toString(), false);
-      if(callback!=undefined){
-        callback();
-      }
-    })
-    .catch((err: any) => {
-      console.log(err);
-      // let msg = JSON.parse(err.message);
-      // this.view.displayMessage(msg.ErrorMsg, 2000);
-      if(callback!=undefined){
-        callback()
-      }
-    });
-
+      .delete(rqst, {
+        token: localStorage.getItem("user_token"),
+        application: application,
+        domain: domain
+      })
+      .then((rsp: persistence.DeleteRsp) => {
+        
+        Room.eventHub.publish("leave_room_" + this.name + "_channel", JSON.stringify({"id":participant_id}) , false);
+        if (callback != undefined) {
+          callback();
+        }
+      })
+      .catch((err: any) => {
+        console.log(err);
+        // let msg = JSON.parse(err.message);
+        // this.view.displayMessage(msg.ErrorMsg, 2000);
+        if (callback != undefined) {
+          callback();
+        }
+      });
   }
 
-  private appendParticipant(participant_id: string){
-    
+  private appendParticipant(participant_id: string) {
     let rqst = new persistence.ReplaceOneRqst();
     rqst.setId("chitchat_db");
     rqst.setDatabase("chitchat_db");
     rqst.setCollection("Participants");
 
-    let id = participant_id + "_" + this.name
-    let participant = {_id: id, "participant":participant_id, room:this.name}
-    rqst.setQuery(JSON.stringify({_id:id}))
-    rqst.setValue(JSON.stringify(participant))
+    let id = participant_id + "_" + this.name;
+    let participant = { _id: id, participant: participant_id, room: this.name };
+    rqst.setQuery(JSON.stringify({ _id: id }));
+    rqst.setValue(JSON.stringify(participant));
     rqst.setOptions(`[{"upsert":true}]`);
 
     // call persist data
     Room.globular.persistenceService
-      .replaceOne(rqst, { token: localStorage.getItem("user_token"), application: application, domain:domain })
+      .replaceOne(rqst, {
+        token: localStorage.getItem("user_token"),
+        application: application,
+        domain: domain
+      })
       .then((rsp: persistence.ReplaceOneRsp) => {
-        // this.eventHub.publish("new_room_event", room.toString(), false);
+        // 
+       Room.eventHub.publish("join_room_" + this.name + "_channel", JSON.stringify({"id":participant_id}) , false); 
       })
       .catch((err: any) => {
         console.log(err);
         let msg = JSON.parse(err.message);
         // this.view.displayMessage(msg.ErrorMsg, 2000);
       });
-
   }
 
   /**
@@ -156,10 +211,9 @@ export class Room {
    * @param account
    */
   leave(account: Account) {
-    let index = this.participants_.indexOf(account);
+    let index = this.participants_.indexOf(account.name);
     if (index == -1) {
       this.participants_ = this.participants_.splice(index, 1);
-
     }
 
     // Remove the list of messages to free ressource.
@@ -192,19 +246,19 @@ export class Room {
    * That event is receive when a participant join the room
    * @param evt
    */
-  onJoin(evt: any) { }
+  onJoin(evt: any) {}
 
   /**
    * That event is receive when a participant leave the room.
    * @param evt
    */
-  onLeave(evt: any) { }
+  onLeave(evt: any) {}
 
   /**
    * That event is receive when a message is receive for that room.
    * @param evt
    */
-  onMessage(evt: any) { }
+  onMessage(evt: any) {}
 
   /**
    * Return the json string of the class. That will be use to save user data into the database.
@@ -223,11 +277,14 @@ export class Room {
 /**
  * The user interface for a room.
  */
-export class RoomView {
-  private model: Room;
+export class RoomView  extends View{
+  protected model: Room;
   private div: any;
 
   constructor(room: Room) {
+
+    super(room)
+
     // Set the model.
     this.model = room;
 
@@ -237,27 +294,28 @@ export class RoomView {
           Ceci est la room ${this.model.name}
         </div>
     </div>
-    `
+    `;
     // Initialyse the html elements.
-    let range = document.createRange()
+    let range = document.createRange();
     this.div = range.createContextualFragment(html);
   }
 
   /**
- * Return the html div.
- */
+   * Return the html div.
+   */
   get element(): any {
-    return this.div
+    return this.div;
   }
 
+  setParent(parent: any){
+    parent.appendChild(this.div)
+  }
 
   // Display the room...
   displayRoom() {
-    console.log(this.model)
+    console.log(this.model);
     // display the list of message
 
     // dipslay the list of participant
-
-
   }
 }

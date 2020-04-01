@@ -11,34 +11,18 @@ import { SessionPanel } from "./components/sessionPanel";
 import { AccountPanel } from "./components/accountPanel";
 import { ApplicationModel } from "./applicationModel";
 import { randomUUID } from "./utility";
+import { View } from "./components/view";
 
 /**
  * The main user interface.
  */
-export class ApplicationView {
-
+export class ApplicationView extends View {
     // reference to the underlying mode.
-    private model: ApplicationModel;
+    protected model: ApplicationModel;
 
-    constructor() {
-        // Set the model.
-        this.model = new ApplicationModel(this, () => {
-            // Login automatically if the user set remember-me checkbox.
-            let rememberMe = localStorage.getItem("remember-me");
-            if (rememberMe) {
-                // Here I will renew the last token...
-                this.model.refreshToken(
-                    (account: Account) => {
-                        this.openSession(account);
-                    },
-                    (err: any, account: Account) => {
-                        this.displayMessage(err.ErrorMsg, 2000);
-                        // close the session if no token are available.
-                        this.closeSession(account);
-                    }
-                );
-            }
-        });
+    constructor(model: ApplicationModel) {
+        // call the view constructor here.
+        super(model);
 
         // The basic layout.
         document.body.innerHTML = `    
@@ -55,7 +39,6 @@ export class ApplicationView {
             </div>
         </main>
         `;
-
 
         // The navigation bar at top of the application...
         let navBarCode = `
@@ -114,11 +97,14 @@ export class ApplicationView {
         document.getElementById("register_lnk_0").onclick = document.getElementById(
             "register_lnk_1"
         ).onclick = () => {
-
-            document.getElementsByTagName("main")[0].innerHTML = `<div id="main" class="section no-pad-bot"><div id="workspace" class="container"></div></main>`;
+            document.getElementsByTagName(
+                "main"
+            )[0].innerHTML = `<div id="main" class="section no-pad-bot"><div id="workspace" class="container"></div></main>`;
 
             let registerPanel = new RegisterPanel();
-            document.getElementById("main").parentNode.appendChild(registerPanel.element);
+            document
+                .getElementById("main")
+                .parentNode.appendChild(registerPanel.element);
             registerPanel.focus();
 
             // Set the login action handler.
@@ -148,10 +134,14 @@ export class ApplicationView {
         document.getElementById("login_lnk_0").onclick = document.getElementById(
             "login_lnk_1"
         ).onclick = () => {
-            document.getElementsByTagName("main")[0].innerHTML = `<div id="main" class="section no-pad-bot"><div id="workspace" class="container"></div></main>`;
+            document.getElementsByTagName(
+                "main"
+            )[0].innerHTML = `<div id="main" class="section no-pad-bot"><div id="workspace" class="container"></div></main>`;
 
             let loginPanel = new LoginPanel();
-            document.getElementById("main").parentNode.appendChild(loginPanel.element);
+            document
+                .getElementById("main")
+                .parentNode.appendChild(loginPanel.element);
             loginPanel.focus();
 
             // Set the register action handler.
@@ -182,14 +172,6 @@ export class ApplicationView {
     }
 
     /**
-     * Display a message to the user.
-     * @param msg The message to display in toast!
-     */
-    displayMessage(msg: string, duration?: number) {
-        M.toast({ html: msg, displayLength: duration });
-    }
-
-    /**
      * Open a new session.
      */
     openSession(account: Account) {
@@ -210,8 +192,9 @@ export class ApplicationView {
         document.getElementById("main_sidenav_lnk").style.display = "";
 
         // Clear the main panel.
-        document.getElementsByTagName("main")[0].innerHTML = `<div id="main" class="section no-pad-bot"><div id="workspace" class="container"></div></main>`;
-
+        document.getElementsByTagName(
+            "main"
+        )[0].innerHTML = `<div id="main" class="section no-pad-bot"><div id="workspace" class="container"></div></main>`;
 
         // Clear the sidenav bar.
         document.getElementById("main_sidenav").innerHTML = "";
@@ -432,7 +415,9 @@ export class ApplicationView {
         document.getElementById("main_sidenav_lnk").style.display = "none";
 
         // Clear the workspace.
-        document.getElementById("main").innerHTML = `<div id="workspace" class="container"></div>`;
+        document.getElementById(
+            "main"
+        ).innerHTML = `<div id="workspace" class="container"></div>`;
 
         // Clear the sidenav bar.
         document.getElementById("main_sidenav").innerHTML = "";
@@ -440,13 +425,12 @@ export class ApplicationView {
         // Display goodbye message.
         if (account != undefined) {
             this.displayMessage("Goodbye " + account.name + " see you latter!", 2000);
-
         }
     }
 
     appendRoom(room: Room) {
         let roomList = document.getElementById("roomList");
-        let uuid = randomUUID()
+        let uuid = randomUUID();
         let txt = `
     <li><a id="${uuid}" href="javascript:void(0)">${room.name}</a></li>
     `;
@@ -454,23 +438,25 @@ export class ApplicationView {
         roomList.appendChild(elements);
 
         document.getElementById(uuid).onclick = () => {
+            if (this.model.room != undefined) {
+                this.model.room.removePaticipant(this.model.account.name, () => {
+                    // The user join the room.
+                    room.join(this.model.account);
+                    this.model.room = room;
+                    let roomView = new RoomView(room);
+                    // Remove the actual content
+                    document.getElementById("workspace").innerHTML = "";
 
-            Room.removePaticipant(this.model.account.name, () => {
-
-                // The user join the room.
-                room.join(this.model.account)
+                    // display the room content.
+                    document.getElementById("workspace").appendChild(roomView.element);
+                });
+            } else {
+                room.join(this.model.account);
                 this.model.room = room;
-
-                console.log("----> please create the room view ", room.name)
-                let roomView = new RoomView(room)
-
-                // Remove the actual content
-                document.getElementById("workspace").innerHTML = ""
-
+                let roomView = new RoomView(room);
                 // display the room content.
                 document.getElementById("workspace").appendChild(roomView.element);
-
-            });
-        }
+            }
+        };
     }
 }
