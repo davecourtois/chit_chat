@@ -211,21 +211,19 @@ export class ApplicationView extends View {
 
         sessionPanel.setSessionName(account.name);
 
-        let applicationMenu = document.createElement("ul");
-        applicationMenu.className = "collapsible collapsible-accordion";
-        applicationMenu.innerHTML = `
+        let elements = document.createRange().createContextualFragment(`
         <li>
             <a data-target="modal1" class="modal-trigger" style="display:none;"  id="modal_trigger"></a>
-            <a class="collapsible-header waves-effect waves-teal" tabindex="0"><div style="display:flex;"><span style="flex-grow: 1;">Rooms</span> <i id="add_room_btn" class="material-icons">add_circle</i></div></a>
-            <div class="collapsible-body" style="">
-                <ul id="roomList">
-                </ul>
-            </div>
+            <a style="padding: 0 16px;" class="waves-effect waves-teal"><div style="display:flex;"><span style="flex-grow: 1;">Rooms</span> <i id="add_room_btn" class="material-icons" style="align-self: center;">add_circle</i></div></a>
         </li>
-        `;
-        sidenav.appendChild(applicationMenu);
-        let roomsList = M.Collapsible.init(applicationMenu);
-        roomsList.open(0);
+        <li>
+            <ul class="collapsible collapsible-accordion" id="roomList">
+            </ul>
+        </li>
+        `);
+
+        sidenav.appendChild(elements);
+  
 
         let modal = document.createElement("div");
         modal.className = "modal open";
@@ -433,12 +431,16 @@ export class ApplicationView extends View {
         let uuid = randomUUID();
         let uuid2 = randomUUID();
         let txt = `
-    <li><a class="collapsible-header waves-effect waves-teal" id="${uuid}" href="javascript:void(0)">${room.name}</a></li>
-    <div class="collapsible-body" style="">
+    <li>
+     
+        <a class="collapsible-header waves-effect waves-teal" id="${uuid}" >${room.name}</a>
+        <div class="collapsible-body" style="">
                 <ul id=${uuid2}>
                   
                 </ul>
-              </div>
+        </div>
+        
+    </li>
     `;
 
 
@@ -455,7 +457,13 @@ export class ApplicationView extends View {
             participants_div.appendChild(participant_div);
         }
 
-        M.Collapsible.init(participants_div);
+        let roomId = room.name
+        M.Collapsible.init(roomList,{onOpenEnd:()=>{
+
+        },
+        onCloseEnd:()=>{
+         console.log(room.participants.length, room) 
+        }});
 
         document.getElementById(uuid).onclick = () => {
             if (this.model.room != undefined) {

@@ -218,7 +218,7 @@ export class Room extends Model {
    */
   leave(account: Account) {
     let index = this.participants_.indexOf(account.name);
-    if (index == -1) {
+    if (index != -1) {
       this.participants_ = this.participants_.splice(index, 1);
     }
 
