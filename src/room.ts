@@ -74,9 +74,8 @@ export class Room extends Model {
         uuid_join_room_listener = uuid;
       },
       // On event.
-      (data: any) => {
-        let user  = JSON.parse(data)
-        applicationView.displayMessage(user.id + " join the room " + this.name, 2000)
+      (paticipantId: any) => {
+        this.onJoin(paticipantId)
       },
       false
     );
@@ -89,10 +88,8 @@ export class Room extends Model {
         uuid_leave_room_listener = uuid;
       },
       // On event.
-      (data: any) => {
-         let user  = JSON.parse(data)
-         applicationView.displayMessage(user.id + " left the room " + this.name, 2000)
-         console.log("------------->Subscribe")
+      (paticipantId: string) => {
+         this.onLeave(paticipantId)
       },
       false
     );
@@ -107,7 +104,6 @@ export class Room extends Model {
       (userId: any) => {
         Room.eventHub.unSubscribe("join_room_" + this.name + "_channel", uuid_join_room_listener)
         Room.eventHub.unSubscribe("leave_room_" + this.name + "_channel", uuid_leave_room_listener)
-      
       },
       false
     );
@@ -130,12 +126,11 @@ export class Room extends Model {
   join(account: Account) {
     let index = this.participants_.indexOf(account.name);
     if (index == -1) {
-      this.participants_.push(account.name);
+      // Keep track of names of paticipant in the room.
+      this.appendParticipant(account.name);
     }
 
-    // Keep track of names of paticipant in the room.
-    this.appendParticipant(account.name);
-
+ 
     // get the list of existing message for that room and keep it locally.
 
     // Connect the listener to display new receive message.
@@ -167,8 +162,9 @@ export class Room extends Model {
       })
       .then((rsp: persistence.DeleteRsp) => {
         
-        Room.eventHub.publish("leave_room_" + this.name + "_channel", JSON.stringify({"id":participant_id}) , false);
+        Room.eventHub.publish("leave_room_" + this.name + "_channel", participant_id, false);
         if (callback != undefined) {
+          
           callback();
         }
       })
@@ -203,7 +199,7 @@ export class Room extends Model {
       })
       .then((rsp: persistence.ReplaceOneRsp) => {
         // 
-       Room.eventHub.publish("join_room_" + this.name + "_channel", JSON.stringify({"id":participant_id}) , false); 
+       Room.eventHub.publish("join_room_" + this.name + "_channel", participant_id , false); 
       })
       .catch((err: any) => {
         console.log(err);
@@ -219,7 +215,7 @@ export class Room extends Model {
   leave(account: Account) {
     let index = this.participants_.indexOf(account.name);
     if (index != -1) {
-      this.participants_ = this.participants_.splice(index, 1);
+      this.removePaticipant(account.name);
     }
 
     // Remove the list of messages to free ressource.
@@ -252,13 +248,27 @@ export class Room extends Model {
    * That event is receive when a participant join the room
    * @param evt
    */
-  onJoin(evt: any) {}
+  onJoin(participantId: string) {
+    applicationView.displayMessage(participantId + " join the room " + this.name, 2000)
+    let index = this.participants_.indexOf(participantId);
+    if(index ==-1){
+      this.participants_.push(participantId);
+    }
+    Room.eventHub.publish("refresh_rooms_channel", participantId, true);
+  }
 
   /**
    * That event is receive when a participant leave the room.
    * @param evt
    */
-  onLeave(evt: any) {}
+  onLeave(participantId: string) {
+    let index = this.participants_.indexOf(participantId);
+    if(index!=-1){
+       this.participants_.splice(index, 1);
+    }
+    applicationView.displayMessage(participantId + " leave the room " + this.name, 2000)
+    Room.eventHub.publish("refresh_rooms_channel", participantId, true);
+  }
 
   /**
    * That event is receive when a message is receive for that room.

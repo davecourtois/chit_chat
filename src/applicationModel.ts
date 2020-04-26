@@ -150,7 +150,9 @@ export class ApplicationModel extends Model {
               if (room.type == 2) {
                 r = new Room(RoomType.Public, room.name, room.subjects, null, participants_);
                 this.rooms.set(r.id, r);
-                this.view.appendRoom(r);
+                let keys = Array.from( this.rooms.keys() );
+                let index = keys.indexOf(r.id);
+                this.view.appendRoom(r, index);
               } else {
                 console.log("Private Room need to be implemented");
               }
@@ -175,7 +177,9 @@ export class ApplicationModel extends Model {
         if (room.type == 2) {
           r = new Room(RoomType.Public, room.name, room.subjects, null);
           this.rooms.set(r.id, r);
-          this.view.appendRoom(r);
+          let keys = Array.from( this.rooms.keys() );
+          let index = keys.indexOf(r.id);
+          this.view.appendRoom(r, index);
         } else {
           console.log("Private Room need to be implemented");
         }

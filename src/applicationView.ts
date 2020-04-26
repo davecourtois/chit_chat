@@ -12,6 +12,7 @@ import { AccountPanel } from "./components/accountPanel";
 import { ApplicationModel } from "./applicationModel";
 import { randomUUID, randomIntFromInterval } from "./utility";
 import { View } from "./components/view";
+import { Model } from "./model";
 
 /**
  * The main user interface.
@@ -223,7 +224,7 @@ export class ApplicationView extends View {
         `);
 
         sidenav.appendChild(elements);
-  
+
 
         let modal = document.createElement("div");
         modal.className = "modal open";
@@ -426,65 +427,102 @@ export class ApplicationView extends View {
         }
     }
 
-    appendRoom(room: Room) {
+    appendRoom(room: Room, index: number) {
         let roomList = document.getElementById("roomList");
         let uuid = randomUUID();
         let uuid2 = randomUUID();
         let txt = `
-    <li>
-     
-        <a class="collapsible-header waves-effect waves-teal" id="${uuid}" >${room.name}</a>
-        <div class="collapsible-body" style="">
-                <ul id=${uuid2}>
-                  
-                </ul>
-        </div>
-        
-    </li>
-    `;
-
-
+        <li>
+            <a class="collapsible-header waves-effect waves-teal" id="${uuid}" > 
+                <i id="${uuid + "_join_btn"}" name="join_btn" class="material-icons" title="join the room ${room.name}" >input</i> 
+                <span id="${uuid + "_count"}" class="badge">${room.participants.length.toString()}</span> ${room.name}</a>
+            <div class="collapsible-body" style="">
+                    <ul id=${uuid2}>
+                    
+                    </ul>
+            </div>
+        </li>
+        `;
 
         let elements = document.createRange().createContextualFragment(txt);
         roomList.appendChild(elements);
 
-
         let participants_div = document.getElementById(uuid2);
-    
-        for(var i=0; i < room.participants.length; i++)
-        {
-            let participant_div = document.createRange().createContextualFragment(`<li><a href="color.html">${room.participants[i]}</a></li>`);
-            participants_div.appendChild(participant_div);
+
+        for (var i = 0; i < room.participants.length; i++) {
+            if(room.participants[i] == this.model.account.name){
+                room.removePaticipant(this.model.account.name);
+            }else{
+                let participant_div = document.createRange().createContextualFragment(`<li><a href="color.html">${room.participants[i]}</a></li>`);
+                participants_div.appendChild(participant_div);
+            }
         }
 
-        let roomId = room.name
-        M.Collapsible.init(roomList,{onOpenEnd:()=>{
 
-        },
-        onCloseEnd:()=>{
-         console.log(room.participants.length, room) 
-        }});
+        M.Collapsible.init(roomList);
 
-        document.getElementById(uuid).onclick = () => {
+        // Here if the participant leave or join a room I will set the number of participant.
+        Model.eventHub.subscribe("refresh_rooms_channel",
+            () => { },
+            () => {
+                let badge = document.getElementById(uuid + "_count");
+                badge.innerHTML = room.participants.length.toString()
+
+                let participants_div = document.getElementById(uuid2);
+                participants_div.innerHTML = ""
+
+                for (var i = 0; i < room.participants.length; i++) {
+                    let participant_div = document.createRange().createContextualFragment(`<li><a href="color.html">${room.participants[i]}</a></li>`);
+                    participants_div.appendChild(participant_div);
+                }
+
+            }, true)
+
+        let joinBtn = document.getElementById(uuid + "_join_btn");
+
+        joinBtn.onclick = (evt: any) => {
+            evt.stopPropagation();
+
+            // display all join room buttons
+            let btns = document.getElementsByName("join_btn")
+            btns.forEach((btn:any)=>{
+                btn.style.display = "";
+            })
+
+            // hide the current room
+            joinBtn.style.display = "none";
+
+            // Open the list of user in the room.
+            var instance = M.Collapsible.getInstance(roomList);
+            instance.open(index);
+
             if (this.model.room != undefined) {
-                this.model.room.removePaticipant(this.model.account.name, () => {
-                    // The user join the room.
-                    room.join(this.model.account);
-                    this.model.room = room;
-                    let roomView = new RoomView(room);
-                    // Remove the actual content
-                    document.getElementById("workspace").innerHTML = "";
+                if (this.model.room.name != room.name) {
+                    this.model.room.removePaticipant(this.model.account.name, () => {
 
-                    // display the room content.
-                    document.getElementById("workspace").appendChild(roomView.element);
-                });
+                        // Join the room
+                        room.join(this.model.account);
+                        this.model.room = room;
+                        let roomView = new RoomView(room);
+
+                        // Remove the actual content
+                        document.getElementById("workspace").innerHTML = "";
+
+                        // display the room content.
+                        document.getElementById("workspace").appendChild(roomView.element);
+
+                    })
+                }
             } else {
+                // Join the room
                 room.join(this.model.account);
                 this.model.room = room;
                 let roomView = new RoomView(room);
+
                 // display the room content.
                 document.getElementById("workspace").appendChild(roomView.element);
             }
+
         };
     }
 }
