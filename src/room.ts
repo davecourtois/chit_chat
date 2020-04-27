@@ -1,4 +1,4 @@
-import { Message } from "./message";
+import { Message, MessageView } from "./message";
 import { Account } from "./account";
 import * as M from "materialize-css";
 import "materialize-css/sass/materialize.scss";
@@ -11,6 +11,7 @@ import { randomUUID } from "./utility";
 import { Model } from "./model";
 import { View } from "./components/view";
 import { applicationModel } from "./index"
+import { MessageInput } from "./components/messageInput";
 
 export enum RoomType {
   Private = 1,
@@ -36,13 +37,12 @@ export class Room extends Model {
   private messages_: Array<Message>;
 
   // listeners.
+  private room_listener: string
   private leave_room_listener: string
   private join_room_listener: string
 
   // The reference to the room view.
   public view: RoomView;
-
-
 
   /**
    * Create a room instance. The room is not necessarly a new room on the network.
@@ -107,6 +107,7 @@ export class Room extends Model {
       },
       // On event.
       (userId: any) => {
+        Room.eventHub.unSubscribe(this.name + "_channel", this.join_room_listener)
         Room.eventHub.unSubscribe("join_room_" + this.name + "_channel", this.join_room_listener)
         Room.eventHub.unSubscribe("leave_room_" + this.name + "_channel", this.leave_room_listener)
       },
@@ -119,9 +120,7 @@ export class Room extends Model {
   }
 
   get participants(): Array<string> {
-
     return this.participants_;
-
   }
 
   /**
@@ -195,25 +194,74 @@ export class Room extends Model {
   }
 
   /**
+   * Append a message into the list of room message.
+   * @param message 
+   */
+  appendMessage(message: Message) {
+
+  }
+
+  /**
    * Join the room.
    * @param account
    */
   join(account: Account) {
+
     let index = this.participants_.indexOf(account.name);
     if (index == -1) {
       // Keep track of names of paticipant in the room.
       this.appendParticipant(account.name);
     }
 
+    // Connect the listener to display new receive message.
+    Room.eventHub.subscribe(
+      this.name + "_channel",
+      // On subscribe
+      (uuid: string) => {
+        // this.uuid = uuid;
+        this.room_listener = uuid;
+      },
+      // On event.
+      (str: any) => {
+        // init the json object
+        let msg = JSON.parse(str)
+
+        // call the local listener.
+        this.onMessage(new Message(msg.from, msg.text, msg.date));
+      },
+      false
+    );
 
     // get the list of existing message for that room and keep it locally.
+    if (this.messages_.length == 0) {
 
-    // Connect the listener to display new receive message.
+      let rqst = new persistence.FindRqst
+      rqst.setId("chitchat_db");
+      rqst.setDatabase("chitchat_db");
+      rqst.setCollection(this.name);
+      rqst.setQuery("{}")
+      let stream = Model.globular.persistenceService.find(rqst, {
+        token: localStorage.getItem("user_token"),
+        application: application,
+        domain: domain
+      });
 
-    // get the list of actual user in the room
+      stream.on("data", (rsp: persistence.FindResp) => {
+        let messages = JSON.parse(rsp.getJsonstr());
+        for (var i = 0; i < messages.length; i++) {
+          let msg = new Message(messages[i].from, messages[i].text, new Date(messages[i].date), messages[i]._id)
+          this.messages_.push(msg)
+          this.view.appendMessage(msg)
+        }
 
-    // Connect the listener to display leaving user
+      });
 
+      stream.on("status", status => {
+        if (status.code != 0) {
+
+        }
+      })
+    }
   }
 
   /**
@@ -231,6 +279,7 @@ export class Room extends Model {
     // Remove the list of messages to free ressource.
 
     // disconnect the listener to display new receive message.
+    Room.eventHub.unSubscribe(this.name + "_channel", this.room_listener)
 
     // disconnect the listener to display joinning user
     Room.eventHub.unSubscribe("join_room_" + this.name + "_channel", this.join_room_listener)
@@ -248,7 +297,29 @@ export class Room extends Model {
   publish(from: string, text: string) {
     let message = new Message(from, text, new Date());
 
-    // publish message on the channel.
+    // So here I will append the message inside the room database and when it'done I will send the
+    // object on the room event channel.
+    let rqst = new persistence.InsertOneRqst
+
+    rqst.setId("chitchat_db");
+    rqst.setDatabase("chitchat_db");
+    rqst.setCollection(this.name); // Each room will have it own collection. so it will simplify query to manage it.
+    rqst.setJsonstr(JSON.stringify(message));
+
+    Model.globular.persistenceService.insertOne(rqst, {
+      token: localStorage.getItem("user_token"),
+      application: application,
+      domain: domain
+    }).then(() => {
+
+      // The message was send with success!
+      Model.eventHub.publish(this.name + "_channel", JSON.stringify(message), false);
+
+    }).catch((err: any) => {
+      // this.displayMessage(err.ErrorMsg, 2000);
+    })
+
+    // Model.globular.
   }
 
   ///////////////////////////////////////////////////////////////////////
@@ -286,7 +357,9 @@ export class Room extends Model {
    * @param evt
    */
   onMessage(evt: any) {
-
+    let msg = new Message(evt.from, evt.text, new Date(evt.date), evt._id)
+    this.messages_.push(msg)
+    this.view.appendMessage(msg)
   }
 
   /**
@@ -310,15 +383,14 @@ export class RoomView extends View {
   protected model: Room;
   private div: any;
   private uuid: string;
+  private index: number; // the index in the roomList element.
 
   // layout section of the page.
-  private header: any;
   private body: any;
-  private footer: any;
-  private index: number;
-
   private side: any; // Can be use to display various information...
 
+  // The message input.
+  private messageInput: MessageInput;
 
   constructor(parent: any, room: Room, index: number) {
 
@@ -331,25 +403,31 @@ export class RoomView extends View {
 
     let html = `
     <div id="${this.uuid}" class="row" style="padding: 0px; display: flex; flex-wrap: wrap;  min-height: calc(100vh - 56px);">
-        <div class="col s12 m9" style="display: flex; flex-direction: column;">
+        <div class="col s12 m9" style="display: flex; flex-direction: column; margin-top: 8px;">
           
-          <div class="card-panel col s12" style="height: 48px; padding: 0px; margin-bottom: 0.3rem; display: flex; align-items: center; padding-left: 10px; padding-right: 10px;">
-            <span style="font-size: 1.2rem;">
-              ${this.model.name}
-            </span>
-            <span style="padding-left:10px; flex-grow: 1;">
-              ${this.model.subjects}
-            </span>
-            <i id="${this.uuid + "_exit_btn"}" class="material-icons right">
-              exit_to_app
-            </i>
+          <div class="col s12" style="padding: 0px; margin: 0px;">
+            <nav class="nav-wrapper indigo darken-4" style="height: 48px; display: flex; align-items: center; padding-left: 10px; padding-right: 10px; color: white;">
+              <span style="font-size: 1.2rem;">
+                ${this.model.name}
+              </span>
+              <span style="padding-left:10px; flex-grow: 1;">
+                ${this.model.subjects}
+              </span>
+              <i id="${this.uuid + "_exit_btn"}" class="material-icons right">
+                exit_to_app
+              </i>
+            </nav>
           </div>
 
-          <div class="card-panel col s12" style="flex: auto;">
+          <div id="${this.uuid + "_body"}" class="col s12" style="flex: auto; margin: 0px; max-height: calc(100vh - 278px);overflow-y: auto;">
+           
+          </div>
+
+          <div id="${this.uuid + "_message_input"}" class="col s12" style="padding: 0px; margin: 0px;">
           </div>
 
         </div>
-        <div class="hide-on-small-only col m3 card-panel">
+        <div  id="${this.uuid + "_side"}" class="hide-on-small-only col m3 card-panel">
         </div>
     </div>
     `;
@@ -363,6 +441,19 @@ export class RoomView extends View {
     this.div = document.getElementById(this.uuid);
 
     let exitBtn = document.getElementById(this.uuid + "_exit_btn")
+
+    // The body will be use to contain list of messages.
+    this.body = document.getElementById(this.uuid + "_body");
+
+    // The side panel.
+    this.side = document.getElementById(this.uuid + "_side");
+
+    // The message input window.
+    this.messageInput = new MessageInput(document.getElementById(this.uuid + "_message_input"), room)
+
+    //////////////////////////////////////////////////////////////////////
+    // Buttons actions
+    //////////////////////////////////////////////////////////////////////
     exitBtn.onmouseover = () => {
       exitBtn.style.cursor = "pointer";
     }
@@ -386,7 +477,7 @@ export class RoomView extends View {
 
         // close the actual room user list.
         var instance = M.Collapsible.getInstance(document.getElementById("roomList"));
-        instance.close(index);
+        instance.close(this.index);
 
       })
     }
@@ -405,11 +496,10 @@ export class RoomView extends View {
   }
 
   // Display the room...
-  displayRoom() {
-    console.log(this.model);
-    // display the list of message
-
-    // dipslay the list of participant
+  appendMessage(msg: Message) {
+    // Append the message view into the message body
+    new MessageView(this.body, msg);
+    this.body.scrollTop = this.body.scrollHeight;
   }
 }
 
