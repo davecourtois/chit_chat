@@ -450,10 +450,10 @@ export class ApplicationView extends View {
         let participants_div = document.getElementById(uuid2);
 
         for (var i = 0; i < room.participants.length; i++) {
-            if(room.participants[i] == this.model.account.name){
+            if (room.participants[i] == this.model.account.name) {
                 room.removePaticipant(this.model.account.name);
-            }else{
-                let participant_div = document.createRange().createContextualFragment(`<li><a href="color.html">${room.participants[i]}</a></li>`);
+            } else {
+                let participant_div = document.createRange().createContextualFragment(`<li><a href="javascript:void(0)">${room.participants[i]}</a></li>`);
                 participants_div.appendChild(participant_div);
             }
         }
@@ -465,6 +465,7 @@ export class ApplicationView extends View {
         Model.eventHub.subscribe("refresh_rooms_channel",
             () => { },
             () => {
+
                 let badge = document.getElementById(uuid + "_count");
                 badge.innerHTML = room.participants.length.toString()
 
@@ -472,20 +473,31 @@ export class ApplicationView extends View {
                 participants_div.innerHTML = ""
 
                 for (var i = 0; i < room.participants.length; i++) {
-                    let participant_div = document.createRange().createContextualFragment(`<li><a href="color.html">${room.participants[i]}</a></li>`);
+                    let participant_div = document.createRange().createContextualFragment(`<li><a href="javascript:void(0)">${room.participants[i]}</a> </li>`);
                     participants_div.appendChild(participant_div);
                 }
 
             }, true)
 
+        document.getElementById(uuid).onclick = (evt: any) => {
+            if (this.model.room != undefined) {
+                if (this.model.room.name == room.name) {
+                    // Remove the actual content
+                    document.getElementById("workspace").innerHTML = "";
+
+                    // display the room content.
+                    this.model.room.view.setParent(document.getElementById("workspace"))
+                }
+            }
+        }
+
         let joinBtn = document.getElementById(uuid + "_join_btn");
 
         joinBtn.onclick = (evt: any) => {
             evt.stopPropagation();
-
             // display all join room buttons
             let btns = document.getElementsByName("join_btn")
-            btns.forEach((btn:any)=>{
+            btns.forEach((btn: any) => {
                 btn.style.display = "";
             })
 
@@ -499,28 +511,30 @@ export class ApplicationView extends View {
             if (this.model.room != undefined) {
                 if (this.model.room.name != room.name) {
                     this.model.room.removePaticipant(this.model.account.name, () => {
-
-                        // Join the room
-                        room.join(this.model.account);
-                        this.model.room = room;
-                        let roomView = new RoomView(room);
-
                         // Remove the actual content
                         document.getElementById("workspace").innerHTML = "";
+                        
+                        // Join the room
+                        room.join(this.model.account);
 
-                        // display the room content.
-                        document.getElementById("workspace").appendChild(roomView.element);
+                        if(room.view == undefined){
+                            new RoomView(document.getElementById("workspace"), room, index);
+                        }else{
+                            room.view.setParent(document.getElementById("workspace"))
+                        }
+                        this.model.room = room;
 
                     })
                 }
             } else {
                 // Join the room
                 room.join(this.model.account);
+                if(room.view == undefined){
+                    new RoomView(document.getElementById("workspace"), room, index);
+                }else{
+                    room.view.setParent(document.getElementById("workspace"))
+                }
                 this.model.room = room;
-                let roomView = new RoomView(room);
-
-                // display the room content.
-                document.getElementById("workspace").appendChild(roomView.element);
             }
 
         };
