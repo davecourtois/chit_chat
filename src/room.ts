@@ -379,8 +379,12 @@ export class Room extends Model {
     let icons = document.getElementsByName(participantId + "_ico")
     let color = this.getParticipantColor(participantId);
     for (var i = 0; i < icons.length; i++) {
-      // Here I will set the icon to grey.
       icons[i].style.color = color;
+    }
+
+    let messageBoxs = document.getElementsByName(participantId + "_message_box")
+    for (var i = 0; i < messageBoxs.length; i++) {
+      messageBoxs[i].style.border = `1px solid ${color}`;
     }
 
     Room.eventHub.publish("refresh_rooms_channel", participantId, true);
@@ -402,7 +406,7 @@ export class Room extends Model {
       if(!leave){
         leave = applicationModel.account.name == participantId
       }
-      
+
       if (leave) {
         // disconnect the listener to display new receive message.
         Room.eventHub.unSubscribe(this.name + "_channel", this.room_listener)
@@ -425,6 +429,11 @@ export class Room extends Model {
       for (var i = 0; i < icons.length; i++) {
         // Here I will set the icon to grey.
         icons[i].style.color = "#D0D0D0"
+      }
+
+      let messageBoxs = document.getElementsByName(participantId + "_message_box")
+      for (var i = 0; i < messageBoxs.length; i++) {
+        messageBoxs[i].style.border = `1px solid #D0D0D0`;
       }
 
       Room.eventHub.publish("refresh_rooms_channel", participantId, true);
@@ -544,7 +553,7 @@ export class RoomView extends View {
 
     exitBtn.onclick = () => {
       exitBtn.style.cursor = "default";
-      this.model.removePaticipant(applicationModel.account.name, () => {
+      this.model.leave(applicationModel.account, () => {
         document.getElementById("workspace").innerHTML = "";
         // display all join room buttons
         let btns = document.getElementsByName("join_btn")
@@ -567,11 +576,13 @@ export class RoomView extends View {
    * Return the html div.
    */
   get element(): any {
+    this.body.scrollTop = this.body.scrollHeight;
     return this.div;
   }
 
   setParent(parent: any) {
     parent.appendChild(this.div)
+    this.body.scrollTop = this.body.scrollHeight;
 
   }
 

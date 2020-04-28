@@ -42,6 +42,7 @@ export class MessageView {
     constructor(parent: any, message: Message, room: Room) {
         // Set the icon with the message color.
         let color = room.getParticipantColor(message.from);
+        let border = `border: 1px solid ${color};`
 
         let html = `
             <div class="row" id="${message.uuid}">
@@ -51,7 +52,7 @@ export class MessageView {
                     <span>${message.date.toLocaleDateString() + " " + message.date.toLocaleTimeString()}</span>
                 </div>
                 <div>
-                    <div class="card-panel class="col s12 m8 l9" style="flex-grow: 1; padding: 10px; margin: 10px; overflow-y: auto;">
+                    <div name="${message.from + "_message_box"}" class="card-panel class="col s12 m8 l9" style="flex-grow: 1; padding: 10px; margin: 10px; overflow-y: auto; ${border}">
                         <div class="card-content">
                             <p>
                                 ${message.text}
