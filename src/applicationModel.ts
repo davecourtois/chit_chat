@@ -21,7 +21,7 @@ import {
 } from "globular-web-client/lib/storage/storagepb/storage_pb";
 import { Uint8ToBase64, decode64 } from "./utility.js";
 import { ApplicationView } from "./applicationView";
-import { application, domain } from ".";
+import { application, domain, downloadFileHttp, readCsvFile } from ".";
 import { Model } from "./model";
 
 /**
@@ -43,6 +43,9 @@ export class ApplicationModel extends Model {
 
   // The applciation view.
   protected view: ApplicationView;
+
+  // The list of colors...
+  protected colors: Array<any>;
 
   constructor(initCallback: () => void) {
     super();
@@ -73,8 +76,15 @@ export class ApplicationModel extends Model {
       Model.globular.eventService
     );
 
-    // Call the init callback function.
-    initCallback();
+
+    // Here I will get the list of colors...
+    readCsvFile("colorName.csv", (colors:Array<any>)=>{
+      // Get a list of colors with names.
+      this.colors = colors;
+
+      // Call the init callback function.
+      initCallback();
+    }); 
   }
 
   private getParticipants(
@@ -88,6 +98,7 @@ export class ApplicationModel extends Model {
     rqst.setDatabase(database);
     rqst.setCollection(collection);
     rqst.setOptions("");
+
     // { $group : { _id : "$author", books: { $push: "$title" } } }
     let pipeline = `[{"$group":{"_id": "$room", "participants": {"$push":"$participant"}}}]`;
 
@@ -148,7 +159,7 @@ export class ApplicationModel extends Model {
                 participants_ = participants_.participants;
               }
               if (room.type == 2) {
-                r = new Room(RoomType.Public, room.name, room.subjects, null, participants_);
+                r = new Room(RoomType.Public, room.name, this.colors, room.subjects, null, participants_);
                 this.rooms.set(r.id, r);
                 let keys = Array.from( this.rooms.keys() );
                 let index = keys.indexOf(r.id);
@@ -175,7 +186,7 @@ export class ApplicationModel extends Model {
         let room = JSON.parse(evt);
         let r: Room;
         if (room.type == 2) {
-          r = new Room(RoomType.Public, room.name, room.subjects, null);
+          r = new Room(RoomType.Public, room.name, this.colors, room.subjects, null);
           this.rooms.set(r.id, r);
           let keys = Array.from( this.rooms.keys() );
           let index = keys.indexOf(r.id);
@@ -183,7 +194,6 @@ export class ApplicationModel extends Model {
         } else {
           console.log("Private Room need to be implemented");
         }
-        console.log(room);
       },
       false
     );
@@ -749,7 +759,7 @@ export class ApplicationModel extends Model {
     rqst.setDatabase("chitchat_db");
     rqst.setCollection("Rooms");
 
-    let room = new Room(roomType, name, [subject], account);
+    let room = new Room(roomType, name, this.colors, [subject], account);
 
     rqst.setJsonstr(room.toString());
     rqst.setOptions("");

@@ -1,5 +1,5 @@
-import {ApplicationView } from "./applicationView"
-import {ApplicationModel } from "./applicationModel"
+import { ApplicationView } from "./applicationView"
+import { ApplicationModel } from "./applicationModel"
 
 // global variable.
 export let application = "chitchat";
@@ -7,7 +7,64 @@ export let domain = window.location.hostname;
 export let applicationModel: ApplicationModel;
 export let applicationView: ApplicationView;
 
-function main(){
+/**
+ * 
+ * @param urlToSend 
+ */
+export function downloadFileHttp(urlToSend: string, fileName: string, callback: () => void) {
+    var req = new XMLHttpRequest();
+    req.open("GET", urlToSend, true);
+
+    // Set the token to manage downlaod access.
+    req.setRequestHeader("token", localStorage.getItem("user_token"))
+    req.setRequestHeader("application", application)
+    req.setRequestHeader("domain", domain)
+
+    req.responseType = "blob";
+    req.onload = function (event) {
+        var blob = req.response;
+        var link = document.createElement('a');
+        link.href = window.URL.createObjectURL(blob);
+        link.download = fileName;
+        link.click();
+        callback();
+    };
+    req.send();
+}
+
+/**
+ * 
+ * @param urlToSend 
+ */
+export function readCsvFile(urlToSend: string, callback: (values:Array<any>) => void) {
+    var req = new XMLHttpRequest();
+    req.open("GET", urlToSend, true);
+
+    // Set the token to manage downlaod access.
+    req.setRequestHeader("token", localStorage.getItem("user_token"))
+    req.setRequestHeader("application", application)
+    req.setRequestHeader("domain", domain)
+
+    req.responseType = "blob";
+    req.onload = function (event) {
+        const reader = new FileReader();
+        reader.addEventListener('loadend', (e:any) => {
+            const text = e.srcElement.result;
+            let rows = text.split("\n")
+            let values = new Array<any>()
+            for(var i=0; i < rows.length; i++){
+                values.push(rows[i].split(","))
+            }
+            callback(values)
+          });
+          
+          // Start reading the blob as text.
+          reader.readAsText(req.response);
+    };
+    req.send();
+}
+
+function main() {
     // Create the application
 
     // Get the applcation data

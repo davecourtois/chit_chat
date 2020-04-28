@@ -7,7 +7,7 @@ import "../css/room.css";
 
 import * as persistence from "globular-web-client/lib/persistence/persistencepb/persistence_pb";
 import { application, domain, applicationView } from ".";
-import { randomUUID } from "./utility";
+import { randomUUID, randomIntFromInterval} from "./utility";
 import { Model } from "./model";
 import { View } from "./components/view";
 import { applicationModel } from "./index"
@@ -25,6 +25,13 @@ export enum RoomType {
  */
 export class Room extends Model {
   private _id: string;
+
+  // A list of color to give to each participant of the room.
+  private colors: Array<any>;
+
+  // Keep track of the participant colors inside the room...
+  // * The array contain the color name at index 0 and the color hexa value at index 1
+  private participantsColor: Map<string, Array<string>>; 
 
   // If a room is private the master can accept or refuse room access and
   // also kick out participant.
@@ -53,6 +60,7 @@ export class Room extends Model {
   constructor(
     public type: RoomType,
     public name: string,
+    colors: Array<any>,
     public subjects?: Array<string>,
     master?: Account,
     participants?: Array<any>
@@ -61,12 +69,30 @@ export class Room extends Model {
 
     this._id = name;
 
+    // Copy the list of colors.
+    this.colors = [... colors]
+    // Set the participant color map.
+    this.participantsColor = new Map<string, Array<string>>();
+
     if (master != null) {
       this.master_ = master;
     }
 
     this.participants_ = new Array<string>();
     if (participants != null) {
+      
+      // remove previous logged session if the some left in the db.
+      let index = participants.indexOf(applicationModel.account.name)
+      if(index != -1){
+        participants.splice(index, 1)
+      }
+
+      // Here I will give a participant a distinct color
+      participants.forEach((participantId:string)=>{
+        let color = this.colors.splice(randomIntFromInterval(0, this.colors.length - 1), 1)[0];
+        this.participantsColor.set(participantId, color)
+      })
+
       this.participants_ = participants;
     }
 
@@ -124,17 +150,29 @@ export class Room extends Model {
   }
 
   /**
+   * Take the participant id and return it accociated color.
+   * @param participantId The color accociated with the participant.
+   */
+  getParticipantColor(participantId: string):string{
+    if(this.participantsColor.has(participantId)){
+      return this.participantsColor.get(participantId)[1]
+    }
+    // retunr neutral grey color if the user is no more in the room...
+    return "#D0D0D0"
+  }
+
+  /**
    * Remove a participant from the room.
-   * @param participant_id 
+   * @param participantId 
    * @param callback 
    */
-  removePaticipant(participant_id: string, callback?: () => void) {
+  removePaticipant(participantId: string, callback?: () => void) {
     let rqst = new persistence.DeleteRqst();
     rqst.setId("chitchat_db");
     rqst.setDatabase("chitchat_db");
     rqst.setCollection("Participants");
 
-    rqst.setQuery(JSON.stringify({ participant: participant_id }));
+    rqst.setQuery(JSON.stringify({ participant: participantId }));
     rqst.setOptions(`[]`);
 
     Room.globular.persistenceService
@@ -145,7 +183,7 @@ export class Room extends Model {
       })
       .then((rsp: persistence.DeleteRsp) => {
         // publish leave room event.
-        Room.eventHub.publish("leave_room_" + this.name + "_channel", participant_id, false);
+        Room.eventHub.publish("leave_room_" + this.name + "_channel", participantId, false);
 
         // call the callback if it's define.
         if (callback != undefined) {
@@ -161,16 +199,25 @@ export class Room extends Model {
 
   /**
    * Append a participant into the room.
-   * @param participant_id 
+   * @param participantId 
    */
-  private appendParticipant(participant_id: string) {
+  private appendParticipant(participantId: string) {
+    let index = this.participants_.indexOf(participantId);
+    if (index == -1) {
+      this.participants_.push(participantId);
+
+      // Here I will give a participant a distinct color
+      let color = this.colors.splice(randomIntFromInterval(0, this.colors.length - 1), 1)[0];
+      this.participantsColor.set(participantId, color)
+    }
+    
     let rqst = new persistence.ReplaceOneRqst();
     rqst.setId("chitchat_db");
     rqst.setDatabase("chitchat_db");
     rqst.setCollection("Participants");
 
-    let id = participant_id + "_" + this.name;
-    let participant = { _id: id, participant: participant_id, room: this.name };
+    let id = participantId + "_" + this.name;
+    let participant = { _id: id, participant: participantId, room: this.name };
     rqst.setQuery(JSON.stringify({ _id: id }));
     rqst.setValue(JSON.stringify(participant));
     rqst.setOptions(`[{"upsert":true}]`);
@@ -184,7 +231,7 @@ export class Room extends Model {
       })
       .then((rsp: persistence.ReplaceOneRsp) => {
         // Publish join room event
-        Room.eventHub.publish("join_room_" + this.name + "_channel", participant_id, false);
+        Room.eventHub.publish("join_room_" + this.name + "_channel", participantId, false);
       })
       .catch((err: any) => {
         console.log(err);
@@ -198,7 +245,7 @@ export class Room extends Model {
    * @param message 
    */
   appendMessage(message: Message) {
-
+    this.messages_.push(message)
   }
 
   /**
@@ -335,7 +382,12 @@ export class Room extends Model {
     let index = this.participants_.indexOf(participantId);
     if (index == -1) {
       this.participants_.push(participantId);
+
+      // Here I will give a participant a distinct color
+      let color = this.colors.splice(randomIntFromInterval(0, this.colors.length - 1), 1)[0];
+      this.participantsColor.set(participantId, color)
     }
+
     Room.eventHub.publish("refresh_rooms_channel", participantId, true);
   }
 
@@ -350,6 +402,13 @@ export class Room extends Model {
     }
     applicationView.displayMessage(participantId + " leave the room " + this.name, 2000)
     Room.eventHub.publish("refresh_rooms_channel", participantId, true);
+
+    // push back it color to the array of colors.
+    if(this.participantsColor.has(participantId)){
+      let color = this.participantsColor.get(participantId)
+      this.colors.push(color)
+    }
+
   }
 
   /**
@@ -498,7 +557,7 @@ export class RoomView extends View {
   // Display the room...
   appendMessage(msg: Message) {
     // Append the message view into the message body
-    new MessageView(this.body, msg);
+    new MessageView(this.body, msg, this.model);
     this.body.scrollTop = this.body.scrollHeight;
   }
 }

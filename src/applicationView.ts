@@ -453,11 +453,15 @@ export class ApplicationView extends View {
             if (room.participants[i] == this.model.account.name) {
                 room.removePaticipant(this.model.account.name);
             } else {
-                let participant_div = document.createRange().createContextualFragment(`<li><a href="javascript:void(0)">${room.participants[i]}</a></li>`);
+                let color = room.getParticipantColor(room.participants[i]);
+                
+                let participant_div = document.createRange().createContextualFragment(`
+                    <li style="display: flex;align-items: center;">
+                        <a href="javascript:void(0)" style="flex-grow: 1;">${room.participants[i]}<span class="badge"><i class="material-icons" style="color:${color};">account_circle</i></span></a>
+                    </li>`);
                 participants_div.appendChild(participant_div);
             }
         }
-
 
         M.Collapsible.init(roomList);
 
@@ -473,7 +477,12 @@ export class ApplicationView extends View {
                 participants_div.innerHTML = ""
 
                 for (var i = 0; i < room.participants.length; i++) {
-                    let participant_div = document.createRange().createContextualFragment(`<li><a href="javascript:void(0)">${room.participants[i]}</a> </li>`);
+                    let color = room.getParticipantColor(room.participants[i]);
+                    console.log(color)
+                    let participant_div = document.createRange().createContextualFragment(
+                        `<li style="display: flex;align-items: center;">
+                            <a href="javascript:void(0)" style="flex-grow: 1;">${room.participants[i]}<span class="badge"><i class="material-icons" style="color:${color};">account_circle</i></span></a>
+                        </li>`);
                     participants_div.appendChild(participant_div);
                 }
 

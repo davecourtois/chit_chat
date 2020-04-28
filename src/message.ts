@@ -1,4 +1,5 @@
 import { randomUUID } from "./utility";
+import { Room } from "./room";
 
 
 /**
@@ -38,13 +39,18 @@ export class MessageView {
      * @param parent 
      * @param message 
      */
-    constructor(parent: any, message: Message) {
+    constructor(parent: any, message: Message, room: Room) {
+        // Set the icon with the message color.
+        let color = room.getParticipantColor(message.from);
+
         let html = `
-            <div class="card-panel" id="${message.uuid}" style="display: flex; flex-direction: column;">
-                <div >
-                    
+            <div class="row" id="${message.uuid}">
+                <div class="col s12 m4" style="display: flex; flex-direction: column; padding: 10px;">
+                    <i class="material-icons" name="${message.from + "_ico"}" style="color:${color};">account_circle</i>
+                    <span>${message.from}</span>
+                    <span>${message.date.toLocaleDateString() + " " + message.date.toLocaleTimeString()}</span>
                 </div>
-                <div style="flex: auto; padding: 0px; margin: 0px; overflow-y: auto;">
+                <div class="card-panel class="col s12 m8" style="flex-grow: 1; padding: 10px; margin: 10px; overflow-y: auto;">
                     ${message.text}
                 </div>
             </div>
@@ -57,7 +63,5 @@ export class MessageView {
 
         // keep the div in the member variable.
         this.div = document.getElementById(message.uuid);
-
-
     }
 }
