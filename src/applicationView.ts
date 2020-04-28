@@ -21,9 +21,15 @@ export class ApplicationView extends View {
     // reference to the underlying mode.
     protected model: ApplicationModel;
 
+    // The refresh room channel.
+    private refresh_rooms_listeners: Map<string, string>;
+
     constructor(model: ApplicationModel) {
         // call the view constructor here.
         super(model);
+
+        // keep the map of the refresh room listeners...
+        this.refresh_rooms_listeners = new  Map<string, string>();
 
         // The basic layout.
         document.body.innerHTML = `    
@@ -231,51 +237,51 @@ export class ApplicationView extends View {
         modal.id = "modal1";
         modal.style.maxWidth = "550px";
         modal.innerHTML = `<div class="modal-content">
-    <div class="row">
-       <div class="col s4">
-          Room Name:
-       </div>
-       <div class="col s8">
-          <div class="input-field inline">
-             <input id="room_name_input" type="text">       
-             <span></span>
-          </div>
-       </div>
+        <div class="row">
+        <div class="col s4">
+            Room Name:
+        </div>
+        <div class="col s8">
+            <div class="input-field inline">
+                <input id="room_name_input" type="text">       
+                <span></span>
+            </div>
+        </div>
+        </div>
+        <div class="row">
+        <div class="col s4">
+            Subject:
+        </div>
+        <div class="col s8">
+            <div class="input-field inline">
+                <input id="room_subject_input" type="text">       
+                <span></span>
+            </div>
+        </div>
+        </div>
+        <div class="row">
+        <div class="col s4">
+            Room type:
+        </div>
+        <div class="col s8">
+            <p>
+                <label>
+                <input id="room_type_public" name="group1" type="radio" checked />
+                <span>Public</span>
+                </label>
+            </p>
+            <p>
+                <label>
+                <input name="group1" type="radio"  />
+                <span>Private</span>
+                </label>
+            </p>
+        </div>
+        </div>
     </div>
-    <div class="row">
-       <div class="col s4">
-          Subject:
-       </div>
-       <div class="col s8">
-          <div class="input-field inline">
-             <input id="room_subject_input" type="text">       
-             <span></span>
-          </div>
-       </div>
-    </div>
-    <div class="row">
-       <div class="col s4">
-          Room type:
-       </div>
-       <div class="col s8">
-          <p>
-             <label>
-             <input id="room_type_public" name="group1" type="radio" checked />
-             <span>Public</span>
-             </label>
-          </p>
-          <p>
-             <label>
-             <input name="group1" type="radio"  />
-             <span>Private</span>
-             </label>
-          </p>
-       </div>
-    </div>
- </div>
- <div class="modal-footer">
-    <a id="room_create_btn" class="modal-close waves-effect waves-green btn-flat">Create</a>        
- </div>`;
+    <div class="modal-footer">
+        <a id="room_create_btn" class="modal-close waves-effect waves-green btn-flat">Create</a>        
+    </div>`;
 
         document.body.appendChild(modal);
         M.Modal.init(modal, {});
@@ -425,6 +431,12 @@ export class ApplicationView extends View {
         if (account != undefined) {
             this.displayMessage("Goodbye " + account.name + " see you latter!", 2000);
         }
+
+        // Here I will unsubscribe to room listeners.
+        this.refresh_rooms_listeners.forEach(
+            (uuid: string) => {
+                Model.eventHub.unSubscribe("refresh_rooms_channel", uuid);
+            });
     }
 
     appendRoom(room: Room, index: number) {
@@ -450,26 +462,23 @@ export class ApplicationView extends View {
         let participants_div = document.getElementById(uuid2);
 
         for (var i = 0; i < room.participants.length; i++) {
-            if (room.participants[i] == this.model.account.name) {
-                room.removePaticipant(this.model.account.name);
-            } else {
-                let color = room.getParticipantColor(room.participants[i]);
-                
-                let participant_div = document.createRange().createContextualFragment(`
+            let color = room.getParticipantColor(room.participants[i]);
+            let participant_div = document.createRange().createContextualFragment(`
                     <li style="display: flex;align-items: center;">
                         <a href="javascript:void(0)" style="flex-grow: 1;">${room.participants[i]}<span class="badge"><i class="material-icons" style="color:${color};">account_circle</i></span></a>
                     </li>`);
-                participants_div.appendChild(participant_div);
-            }
+            participants_div.appendChild(participant_div);
         }
 
         M.Collapsible.init(roomList);
 
         // Here if the participant leave or join a room I will set the number of participant.
         Model.eventHub.subscribe("refresh_rooms_channel",
-            () => { },
+            (uuid: string) => {
+                // keep the listener uuid to unsubscribe latter.
+                this.refresh_rooms_listeners.set(room.name, uuid);
+            },
             () => {
-
                 let badge = document.getElementById(uuid + "_count");
                 badge.innerHTML = room.participants.length.toString()
 
@@ -478,7 +487,6 @@ export class ApplicationView extends View {
 
                 for (var i = 0; i < room.participants.length; i++) {
                     let color = room.getParticipantColor(room.participants[i]);
-                    console.log(color)
                     let participant_div = document.createRange().createContextualFragment(
                         `<li style="display: flex;align-items: center;">
                             <a href="javascript:void(0)" style="flex-grow: 1;">${room.participants[i]}<span class="badge"><i class="material-icons" style="color:${color};">account_circle</i></span></a>
@@ -493,7 +501,6 @@ export class ApplicationView extends View {
                 if (this.model.room.name == room.name) {
                     // Remove the actual content
                     document.getElementById("workspace").innerHTML = "";
-
                     // display the room content.
                     this.model.room.view.setParent(document.getElementById("workspace"))
                 }
@@ -519,16 +526,17 @@ export class ApplicationView extends View {
 
             if (this.model.room != undefined) {
                 if (this.model.room.name != room.name) {
-                    this.model.room.removePaticipant(this.model.account.name, () => {
+                    this.model.room.leave(this.model.account, () => {
+
                         // Remove the actual content
                         document.getElementById("workspace").innerHTML = "";
-                        
+
                         // Join the room
                         room.join(this.model.account);
 
-                        if(room.view == undefined){
+                        if (room.view == undefined) {
                             new RoomView(document.getElementById("workspace"), room, index);
-                        }else{
+                        } else {
                             room.view.setParent(document.getElementById("workspace"))
                         }
                         this.model.room = room;
@@ -538,9 +546,9 @@ export class ApplicationView extends View {
             } else {
                 // Join the room
                 room.join(this.model.account);
-                if(room.view == undefined){
+                if (room.view == undefined) {
                     new RoomView(document.getElementById("workspace"), room, index);
-                }else{
+                } else {
                     room.view.setParent(document.getElementById("workspace"))
                 }
                 this.model.room = room;

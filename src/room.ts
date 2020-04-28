@@ -97,48 +97,6 @@ export class Room extends Model {
     }
 
     this.messages_ = new Array<Message>();
-
-    Room.eventHub.subscribe(
-      "join_room_" + this.name + "_channel",
-      // On subscribe
-      (uuid: string) => {
-        // this.uuid = uuid;
-        this.join_room_listener = uuid;
-      },
-      // On event.
-      (paticipantId: any) => {
-        this.onJoin(paticipantId)
-      },
-      false
-    );
-
-    Room.eventHub.subscribe(
-      "leave_room_" + this.name + "_channel",
-      // On subscribe
-      (uuid: string) => {
-        this.leave_room_listener = uuid;
-      },
-      // On event.
-      (paticipantId: string) => {
-        this.onLeave(paticipantId)
-      },
-      false
-    );
-
-    Room.eventHub.subscribe(
-      "logout_event",
-      // On subscribe
-      (uuid: string) => {
-
-      },
-      // On event.
-      (userId: any) => {
-        Room.eventHub.unSubscribe(this.name + "_channel", this.join_room_listener)
-        Room.eventHub.unSubscribe("join_room_" + this.name + "_channel", this.join_room_listener)
-        Room.eventHub.unSubscribe("leave_room_" + this.name + "_channel", this.leave_room_listener)
-      },
-      false
-    );
   }
 
   get id(): string {
@@ -166,7 +124,9 @@ export class Room extends Model {
    * @param participantId 
    * @param callback 
    */
-  removePaticipant(participantId: string, callback?: () => void) {
+  removePaticipant(participantId: string, callback: () => void) {
+
+
     let rqst = new persistence.DeleteRqst();
     rqst.setId("chitchat_db");
     rqst.setDatabase("chitchat_db");
@@ -182,8 +142,6 @@ export class Room extends Model {
         domain: domain
       })
       .then((rsp: persistence.DeleteRsp) => {
-        // publish leave room event.
-        Room.eventHub.publish("leave_room_" + this.name + "_channel", participantId, false);
 
         // call the callback if it's define.
         if (callback != undefined) {
@@ -201,11 +159,10 @@ export class Room extends Model {
    * Append a participant into the room.
    * @param participantId 
    */
-  private appendParticipant(participantId: string) {
+  private appendParticipant(participantId: string, callback: () => void) {
     let index = this.participants_.indexOf(participantId);
     if (index == -1) {
       this.participants_.push(participantId);
-
       // Here I will give a participant a distinct color
       let color = this.colors.splice(randomIntFromInterval(0, this.colors.length - 1), 1)[0];
       this.participantsColor.set(participantId, color)
@@ -231,7 +188,9 @@ export class Room extends Model {
       })
       .then((rsp: persistence.ReplaceOneRsp) => {
         // Publish join room event
-        Room.eventHub.publish("join_room_" + this.name + "_channel", participantId, false);
+        if (callback != undefined) {
+          callback();
+        }
       })
       .catch((err: any) => {
         console.log(err);
@@ -253,61 +212,92 @@ export class Room extends Model {
    * @param account
    */
   join(account: Account) {
-
+    // join the room only fi it not already in.
     let index = this.participants_.indexOf(account.name);
     if (index == -1) {
       // Keep track of names of paticipant in the room.
-      this.appendParticipant(account.name);
-    }
+      this.appendParticipant(account.name, () => {
 
-    // Connect the listener to display new receive message.
-    Room.eventHub.subscribe(
-      this.name + "_channel",
-      // On subscribe
-      (uuid: string) => {
-        // this.uuid = uuid;
-        this.room_listener = uuid;
-      },
-      // On event.
-      (str: any) => {
-        // init the json object
-        let msg = JSON.parse(str)
+        // Connect the listener to display new receive message.
+        Room.eventHub.subscribe(
+          this.name + "_channel",
+          // On subscribe
+          (uuid: string) => {
+            this.room_listener = uuid;
+            Room.eventHub.subscribe(
+              "join_room_" + this.name + "_channel",
+              // On subscribe
+              (uuid: string) => {
+                // this.uuid = uuid;
+                this.join_room_listener = uuid;
 
-        // call the local listener.
-        this.onMessage(new Message(msg.from, msg.text, msg.date));
-      },
-      false
-    );
+                Room.eventHub.subscribe(
+                  "leave_room_" + this.name + "_channel",
+                  // On subscribe
+                  (uuid: string) => {
+                    this.leave_room_listener = uuid;
 
-    // get the list of existing message for that room and keep it locally.
-    if (this.messages_.length == 0) {
+                    // publish the message.
+                    Room.eventHub.publish("join_room_" + this.name + "_channel", account.name, false);
 
-      let rqst = new persistence.FindRqst
-      rqst.setId("chitchat_db");
-      rqst.setDatabase("chitchat_db");
-      rqst.setCollection(this.name);
-      rqst.setQuery("{}")
-      let stream = Model.globular.persistenceService.find(rqst, {
-        token: localStorage.getItem("user_token"),
-        application: application,
-        domain: domain
+                  },
+                  // On event.
+                  (paticipantId: string) => {
+                    this.onLeave(paticipantId)
+                  },
+                  false
+                );
+              },
+              // On event.
+              (paticipantId: any) => {
+                this.onJoin(paticipantId)
+              },
+              false
+            );
+          },
+          // On event.
+          (str: any) => {
+            // init the json object
+            let msg = JSON.parse(str)
+
+            // call the local listener.
+            this.onMessage(new Message(msg.from, msg.text, msg.date));
+          },
+          false
+        );
+
+
+        // get the list of existing message for that room and keep it locally.
+        if (this.messages_.length == 0) {
+          let rqst = new persistence.FindRqst
+          rqst.setId("chitchat_db");
+          rqst.setDatabase("chitchat_db");
+          rqst.setCollection(this.name);
+          rqst.setQuery("{}")
+          let stream = Model.globular.persistenceService.find(rqst, {
+            token: localStorage.getItem("user_token"),
+            application: application,
+            domain: domain
+          });
+
+          stream.on("data", (rsp: persistence.FindResp) => {
+            let messages = JSON.parse(rsp.getJsonstr());
+            for (var i = 0; i < messages.length; i++) {
+              let msg = new Message(messages[i].from, messages[i].text, new Date(messages[i].date), messages[i]._id)
+              this.messages_.push(msg)
+              this.view.appendMessage(msg)
+            }
+
+          });
+
+          stream.on("status", status => {
+            if (status.code != 0) {
+
+            }
+          })
+        }
       });
 
-      stream.on("data", (rsp: persistence.FindResp) => {
-        let messages = JSON.parse(rsp.getJsonstr());
-        for (var i = 0; i < messages.length; i++) {
-          let msg = new Message(messages[i].from, messages[i].text, new Date(messages[i].date), messages[i]._id)
-          this.messages_.push(msg)
-          this.view.appendMessage(msg)
-        }
-
-      });
-
-      stream.on("status", status => {
-        if (status.code != 0) {
-
-        }
-      })
     }
   }
 
@@ -315,25 +305,22 @@ export class Room extends Model {
    * Leave a room.
    * @param account
    */
-  leave(account: Account) {
+  leave(account: Account, callback?: () => void) {
 
     // Remove the participant from the list.
     let index = this.participants_.indexOf(account.name);
     if (index != -1) {
-      this.removePaticipant(account.name);
+      this.removePaticipant(account.name, () => {
+
+        // publish leave room event. * The listener's will be deconnect in event handler function
+        // after the publish event is received.
+        Room.eventHub.publish("leave_room_" + this.name + "_channel", account.name, false);
+
+        if (callback != undefined) {
+          callback();
+        }
+      });
     }
-
-    // Remove the list of messages to free ressource.
-
-    // disconnect the listener to display new receive message.
-    Room.eventHub.unSubscribe(this.name + "_channel", this.room_listener)
-
-    // disconnect the listener to display joinning user
-    Room.eventHub.unSubscribe("join_room_" + this.name + "_channel", this.join_room_listener)
-
-    // disconnect the listener to display leaving user
-    Room.eventHub.unSubscribe("leave_room_" + this.name + "_channel", this.leave_room_listener)
-
 
     // publish close room if there is no more participant.
   }
@@ -380,23 +367,24 @@ export class Room extends Model {
   onJoin(participantId: string) {
     applicationView.displayMessage(participantId + " join the room " + this.name, 2000)
     let index = this.participants_.indexOf(participantId);
+
     if (index == -1) {
       this.participants_.push(participantId);
-
       // Here I will give a participant a distinct color
       let color = this.colors.splice(randomIntFromInterval(0, this.colors.length - 1), 1)[0];
       this.participantsColor.set(participantId, color)
-      
-      // I will set all the icon grey...
-      let icons = document.getElementsByName(participantId + "_ico")
-      for (var i = 0; i < icons.length; i++) {
-        // Here I will set the icon to grey.
-        icons[i].style.color = color;
-      }
+    }
+
+    // I will set all the icon grey...
+    let icons = document.getElementsByName(participantId + "_ico")
+    let color = this.getParticipantColor(participantId);
+    for (var i = 0; i < icons.length; i++) {
+      // Here I will set the icon to grey.
+      icons[i].style.color = color;
     }
 
     Room.eventHub.publish("refresh_rooms_channel", participantId, true);
-    
+
   }
 
   /**
@@ -407,21 +395,39 @@ export class Room extends Model {
     let index = this.participants_.indexOf(participantId);
     if (index != -1) {
       this.participants_.splice(index, 1);
-    }
-    applicationView.displayMessage(participantId + " leave the room " + this.name, 2000)
-    Room.eventHub.publish("refresh_rooms_channel", participantId, true);
+      applicationView.displayMessage(participantId + " leave the room " + this.name, 2000)
 
-    // push back it color to the array of colors.
-    if (this.participantsColor.has(participantId)) {
-      let color = this.participantsColor.get(participantId)
-      this.colors.push(color)
-    }
+      // if it's the local user I will also disconnect the room event listener's
+      let leave = applicationModel.account == undefined;
+      if(!leave){
+        leave = applicationModel.account.name == participantId
+      }
+      
+      if (leave) {
+        // disconnect the listener to display new receive message.
+        Room.eventHub.unSubscribe(this.name + "_channel", this.room_listener)
 
-    // I will set all the icon grey...
-    let icons = document.getElementsByName(participantId + "_ico")
-    for (var i = 0; i < icons.length; i++) {
-      // Here I will set the icon to grey.
-      icons[i].style.color = "#D0D0D0"
+        // disconnect the listener to display joinning user
+        Room.eventHub.unSubscribe("join_room_" + this.name + "_channel", this.join_room_listener)
+
+        // disconnect the listener to display leaving user
+        Room.eventHub.unSubscribe("leave_room_" + this.name + "_channel", this.leave_room_listener)
+      }
+
+      // push back it color to the array of colors.
+      if (this.participantsColor.has(participantId)) {
+        let color = this.participantsColor.get(participantId)
+        this.colors.push(color)
+      }
+
+      // I will set all the icon grey...
+      let icons = document.getElementsByName(participantId + "_ico")
+      for (var i = 0; i < icons.length; i++) {
+        // Here I will set the icon to grey.
+        icons[i].style.color = "#D0D0D0"
+      }
+
+      Room.eventHub.publish("refresh_rooms_channel", participantId, true);
     }
 
   }

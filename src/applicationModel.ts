@@ -197,6 +197,7 @@ export class ApplicationModel extends Model {
       },
       false
     );
+
   }
 
   /**
@@ -392,6 +393,7 @@ export class ApplicationModel extends Model {
     onLogin: (account: Account) => void,
     onError: (err: any) => void
   ) {
+
     let rqst = new ressource.AuthenticateRqst();
     rqst.setName(email);
     rqst.setPassword(password);
@@ -407,11 +409,13 @@ export class ApplicationModel extends Model {
         localStorage.setItem("user_token", token);
         localStorage.setItem("user_email", email);
         localStorage.setItem("user_name", userName);
+
+
         this.account = new Account(userName, email);
 
         //here I will remove the participant
         if (this.room != undefined) {
-          this.room.removePaticipant(this.account.name);
+          this.room.leave(this.account)
         }
 
         // Retreive user data...
@@ -431,57 +435,7 @@ export class ApplicationModel extends Model {
             onError(msg);
           }
         );
-
-        // Create A connection with the storage service.
-        let rqst = new CreateConnectionRqst();
-        let conn = new Connection();
-        conn.setId(this.account.name);
-        conn.setName(this.account.name);
-        conn.setType(StoreType.LEVEL_DB);
-        rqst.setConnection(conn);
-
-        Model.globular.storageService
-          .createConnection(rqst, {
-            token: token,
-            application: application,
-            domain: domain
-          })
-          .then(() => {
-            let rqst = new OpenRqst();
-            rqst.setId(this.account.name);
-            let path = "/home/dave/Documents/chitchat_storage_db";
-
-            //let path = "C:/temp/chitchat_storage_db"
-            // The path can vary depending on the sytem...
-            let options = { path: path, name: this.account.name };
-            rqst.setOptions(JSON.stringify(options));
-            Model.globular.storageService
-              .open(rqst, {
-                token: token,
-                application: application,
-                domain: domain
-              })
-              .then(() => {
-                console.log("---> storage connection ready to be use!");
-                // Test save token in the storage service.
-                this.setStorageObject(
-                  "/" + application + "_ressources/" + this.account.name,
-                  "token",
-                  decoded
-                );
-              })
-              .catch(err => {
-                console.log(err);
-                let msg = JSON.parse(err.message);
-                onError(msg);
-              });
-          })
-          .catch(err => {
-            console.log(err);
-            let msg = JSON.parse(err.message);
-            onError(msg);
-          });
-
+        
         // Refresh the token at session timeout
         setTimeout(() => {
           this.refreshToken((account: Account) => {
@@ -503,38 +457,20 @@ export class ApplicationModel extends Model {
    * Close the current session explicitelty.
    */
   logout() {
+
     // Publish the logout event.
     if (this.room != undefined) {
-      this.room.removePaticipant(this.account.name);
+      this.room.leave(this.account);
     }
 
     this.view.closeSession(this.account);
 
     Model.eventHub.publish("logout_event", this.account.name, false);
 
-    // erase the local storage items.
-    localStorage.removeItem("user_token");
-    localStorage.removeItem("user_name");
-    localStorage.removeItem("user_email");
-
-    let rqst = new CloseRqst();
-
-    rqst.setId(this.account.name);
-    Model.globular.storageService
-      .close(rqst, {
-        token: localStorage.getItem("user_token"),
-        application: application,
-        domain: domain
-      })
-      .then(() => {
-        console.log("storage connection close!");
-      })
-      .catch((err: any) => {
-        console.log(err);
-      });
-
-    // set the account to null.
-    this.account = null;
+    // Set room to undefined.
+    this.room = undefined;
+    this.account = undefined;
+   
   }
 
   /**
@@ -564,41 +500,6 @@ export class ApplicationModel extends Model {
     Model.globular.ressourceService
       .refreshToken(rqst)
       .then((rsp: ressource.RefreshTokenRsp) => {
-        // Here I will set the token in the localstorage.
-        let token = rsp.getToken();
-        let decoded = jwt(token);
-        let userName = (<any>decoded).username;
-
-        // here I will save the user token and user_name in the local storage.
-        localStorage.setItem("user_token", token);
-        localStorage.setItem("user_name", userName);
-
-        // Callback on login.
-        this.account = new Account(
-          (<any>decoded).username,
-          localStorage.getItem("user_email")
-        );
-
-        // Retreive user data...
-        this.readOneUserData(
-          `{"_id":"` + userName + `"}`,
-          (data: any) => {
-            // Callback on login.
-            this.account.hasData = true;
-            this.account.firstName = data["firstName_"];
-            this.account.lastName = data["lastName_"];
-            this.account.profilPicture = data["profilPicture_"];
-            onNewToken(this.account);
-          },
-          (err: any) => {
-            onNewToken(this.account);
-            this.account.hasData = false;
-            console.log(err);
-            let msg = JSON.parse(err.message);
-            onError(msg, this.account);
-          }
-        );
-
         // Refresh the token at session timeout
         setTimeout(() => {
           this.refreshToken((account: Account) => {
