@@ -43,7 +43,7 @@ export class Room extends Model {
   // List of all message of the room since it creation.
   private messages_: Array<Message>;
 
-  // listeners.
+  // events listeners.
   private room_listener: string
   private leave_room_listener: string
   private join_room_listener: string
@@ -261,7 +261,7 @@ export class Room extends Model {
             let msg = JSON.parse(str)
 
             // call the local listener.
-            this.onMessage(new Message(msg.from, msg.text, msg.date));
+            this.onMessage(new Message(msg.from, msg.text, msg.date, msg._id, msg.likes, msg.dislikes));
           },
           false
         );
@@ -283,7 +283,7 @@ export class Room extends Model {
           stream.on("data", (rsp: persistence.FindResp) => {
             let messages = JSON.parse(rsp.getJsonstr());
             for (var i = 0; i < messages.length; i++) {
-              let msg = new Message(messages[i].from, messages[i].text, new Date(messages[i].date), messages[i]._id)
+              let msg = new Message(messages[i].from, messages[i].text, new Date(messages[i].date), messages[i]._id, messages[i].likes, messages[i].dislikes)
               this.messages_.push(msg)
               this.view.appendMessage(msg)
             }
@@ -446,7 +446,7 @@ export class Room extends Model {
    * @param evt
    */
   onMessage(evt: any) {
-    let msg = new Message(evt.from, evt.text, new Date(evt.date), evt._id)
+    let msg = new Message(evt.from, evt.text, new Date(evt.date), evt._id, evt.likes, evt.dislikes)
     this.messages_.push(msg)
     this.view.appendMessage(msg)
   }
@@ -589,7 +589,9 @@ export class RoomView extends View {
   // Display the room...
   appendMessage(msg: Message) {
     // Append the message view into the message body
-    new MessageView(this.body, msg, this.model);
+    let view = new MessageView(this.body, msg, this.model);
+    msg.setView(view)
+    
     this.body.scrollTop = this.body.scrollHeight;
   }
 }
