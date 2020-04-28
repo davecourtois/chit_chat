@@ -7,7 +7,7 @@ import "../css/room.css";
 
 import * as persistence from "globular-web-client/lib/persistence/persistencepb/persistence_pb";
 import { application, domain, applicationView } from ".";
-import { randomUUID, randomIntFromInterval} from "./utility";
+import { randomUUID, randomIntFromInterval } from "./utility";
 import { Model } from "./model";
 import { View } from "./components/view";
 import { applicationModel } from "./index"
@@ -31,7 +31,7 @@ export class Room extends Model {
 
   // Keep track of the participant colors inside the room...
   // * The array contain the color name at index 0 and the color hexa value at index 1
-  private participantsColor: Map<string, Array<string>>; 
+  private participantsColor: Map<string, Array<string>>;
 
   // If a room is private the master can accept or refuse room access and
   // also kick out participant.
@@ -70,7 +70,7 @@ export class Room extends Model {
     this._id = name;
 
     // Copy the list of colors.
-    this.colors = [... colors]
+    this.colors = [...colors]
     // Set the participant color map.
     this.participantsColor = new Map<string, Array<string>>();
 
@@ -80,15 +80,15 @@ export class Room extends Model {
 
     this.participants_ = new Array<string>();
     if (participants != null) {
-      
+
       // remove previous logged session if the some left in the db.
       let index = participants.indexOf(applicationModel.account.name)
-      if(index != -1){
+      if (index != -1) {
         participants.splice(index, 1)
       }
 
       // Here I will give a participant a distinct color
-      participants.forEach((participantId:string)=>{
+      participants.forEach((participantId: string) => {
         let color = this.colors.splice(randomIntFromInterval(0, this.colors.length - 1), 1)[0];
         this.participantsColor.set(participantId, color)
       })
@@ -153,8 +153,8 @@ export class Room extends Model {
    * Take the participant id and return it accociated color.
    * @param participantId The color accociated with the participant.
    */
-  getParticipantColor(participantId: string):string{
-    if(this.participantsColor.has(participantId)){
+  getParticipantColor(participantId: string): string {
+    if (this.participantsColor.has(participantId)) {
       return this.participantsColor.get(participantId)[1]
     }
     // retunr neutral grey color if the user is no more in the room...
@@ -210,7 +210,7 @@ export class Room extends Model {
       let color = this.colors.splice(randomIntFromInterval(0, this.colors.length - 1), 1)[0];
       this.participantsColor.set(participantId, color)
     }
-    
+
     let rqst = new persistence.ReplaceOneRqst();
     rqst.setId("chitchat_db");
     rqst.setDatabase("chitchat_db");
@@ -386,9 +386,17 @@ export class Room extends Model {
       // Here I will give a participant a distinct color
       let color = this.colors.splice(randomIntFromInterval(0, this.colors.length - 1), 1)[0];
       this.participantsColor.set(participantId, color)
+      
+      // I will set all the icon grey...
+      let icons = document.getElementsByName(participantId + "_ico")
+      for (var i = 0; i < icons.length; i++) {
+        // Here I will set the icon to grey.
+        icons[i].style.color = color;
+      }
     }
 
     Room.eventHub.publish("refresh_rooms_channel", participantId, true);
+    
   }
 
   /**
@@ -404,9 +412,16 @@ export class Room extends Model {
     Room.eventHub.publish("refresh_rooms_channel", participantId, true);
 
     // push back it color to the array of colors.
-    if(this.participantsColor.has(participantId)){
+    if (this.participantsColor.has(participantId)) {
       let color = this.participantsColor.get(participantId)
       this.colors.push(color)
+    }
+
+    // I will set all the icon grey...
+    let icons = document.getElementsByName(participantId + "_ico")
+    for (var i = 0; i < icons.length; i++) {
+      // Here I will set the icon to grey.
+      icons[i].style.color = "#D0D0D0"
     }
 
   }
