@@ -83,6 +83,11 @@ export class MessageInput {
         }
     }
 
+    focus(){
+        this.textArea.focus();
+        this.room.view.scrollDown()
+    }
+
     /**
      * Send the message...
      */

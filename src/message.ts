@@ -237,19 +237,19 @@ export class MessageView extends View {
                                 ${message.text}
                             </p>
                         </div>
-                        <div class="card-actions">
-                           <a id="${message.uuid + "_reply_btn"}" href="javascript:void(0)">reply</a>
+                        <div class="card-actions right">
+                            <span id="${message.uuid + "_like_div"}" style="position: relative;">
+                                <i id="${message.uuid + "_like_btn"}" class="tiny material-icons">thumb_up</i>
+                                <a id="${message.uuid + "_like_count"}" href="javascript:void(0)">${message.howManyLikes()}</a>
+                            </span>
+                            <span id="${message.uuid + "_dislike_div"}" style="padding-left: 15px; position: relative;">
+                                <i id="${message.uuid + "_dislike_btn"}" class="tiny material-icons">thumb_down</i>
+                                <a id="${message.uuid + "_dislike_count"}" href="javascript:void(0)">${message.howManyDislikes()}</a>
+                            </span>
                         </div>
                     </div>
                     <div class="right" style="padding-right: 25px;">
-                        <span id="${message.uuid + "_like_div"}" style="position: relative;">
-                            <i id="${message.uuid + "_like_btn"}" class="tiny material-icons">thumb_up</i>
-                            <a id="${message.uuid + "_like_count"}" href="javascript:void(0)">${message.howManyLikes()}</a>
-                        </span>
-                        <span id="${message.uuid + "_dislike_div"}" style="padding-left: 15px; position: relative;">
-                            <i id="${message.uuid + "_dislike_btn"}" class="tiny material-icons">thumb_down</i>
-                            <a id="${message.uuid + "_dislike_count"}" href="javascript:void(0)">${message.howManyDislikes()}</a>
-                        </span>
+                        <a id="${message.uuid + "_reply_btn"}" href="javascript:void(0)">reply</a>
                     </div>
                 </div>
             </div>
@@ -296,7 +296,7 @@ export class MessageView extends View {
         this.likeBtn.onclick = () => {
             message.like(applicationModel.account.name, room,
                 () => {
-                    this.displayMessage("You like it!", 3000)
+                    this.displayMessage("Thank's man!", 3000)
                 },
                 (err: any) => {
 
@@ -409,6 +409,14 @@ export class MessageView extends View {
                 }
             }
         }
+    }
+
+    hideReplyBtn(){
+        this.replyBtn.style.display = "none";
+    }
+
+    showReplyBtn(){
+        this.replyBtn.style.display = "";
     }
 
     /**

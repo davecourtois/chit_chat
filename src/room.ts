@@ -110,6 +110,10 @@ export class Room extends Model {
     return this.participants_;
   }
 
+  get messages(): Array<Message> {
+    return this.messages_;
+  }
+
   /**
    * Take the participant id and return it accociated color.
    * @param participantId The color accociated with the participant.
@@ -603,14 +607,18 @@ export class RoomView extends View {
    * Return the html div.
    */
   get element(): any {
-    this.body.scrollTop = this.body.scrollHeight;
+    this.scrollDown()
     return this.div;
   }
 
   setParent(parent: any) {
     parent.appendChild(this.div)
-    this.body.scrollTop = this.body.scrollHeight;
+    this.scrollDown()
 
+  }
+
+  scrollDown() {
+    this.body.scrollTop = this.body.scrollHeight;
   }
 
   // Display the room...
@@ -618,41 +626,70 @@ export class RoomView extends View {
     // Append the message view into the message body
     let view = new MessageView(this.body, msg, this.model);
     msg.setView(view)
-
-    this.body.scrollTop = this.body.scrollHeight;
+    this.scrollDown();
   }
 
   // Mask the window.
   setReplyTo(msg: Message) {
 
-    // Here I will disable the body given and increase z-index to message view
-    /*let div = document.createElement("div")
-    div.style.position = "absolute"
-    div.style.backgroundColor = "rgba(0,0,0,0.2)"
-
-    window.addEventListener('resize', () => {
-      var viewportOffset = this.body.getBoundingClientRect();
-
-      // these are relative to the viewport, i.e. the window
-      div.style.top = viewportOffset.top + "px";
-      div.style.left = viewportOffset.left + "px";
-      div.style.width = viewportOffset.width + "px";
-      div.style.height = viewportOffset.height + "px";
-    });
-
-    // Append the 
-    document.body.appendChild(div)
-
-    let messageDiv = (<any>document.getElementById(msg.uuid))
-    messageDiv.style.zIndex = 1000;
-
-    fireResize();*/
+    // Hide the reply btn.
+    (<MessageView>msg.getView()).hideReplyBtn()
 
     // Here I will display only the message that we want to reply...
-    
-  }
+    this.model.messages.forEach((msg: Message) => {
+      document.getElementById(msg.uuid).style.display = "none";
+    });
 
-  resetReplyTo() {
+    // Here I will append the back arrow to get back in the main conversation.
+    let backBtn = document.createElement("i");
+    backBtn.className = "material-icons";
+    backBtn.innerHTML = "arrow_back";
+    backBtn.style.position = "absolute";
+    backBtn.style.zIndex = "1000";
+    document.body.appendChild(backBtn)
+
+    let msgDiv = document.getElementById(msg.uuid)
+    msgDiv.style.display = "";
+
+    // Keep the event listener in the object itself.
+    backBtn.onresize = () => {
+      var viewportOffset = msgDiv.getBoundingClientRect();
+      // these are relative to the viewport, i.e. the window
+      var top = viewportOffset.top;
+      var left = viewportOffset.left;
+      backBtn.style.top = top + (msgDiv.offsetHeight - backBtn.offsetHeight) / 2 + "px";
+      backBtn.style.left = left - backBtn.offsetWidth - 10 + "px";
+    }
+
+    // get back to normal.
+    backBtn.onclick = () => {
+      // Here I will display only the message that we want to reply...
+      this.model.messages.forEach((msg: Message) => {
+        document.getElementById(msg.uuid).style.display = "";
+      });
+
+      this.model.resetReplyTo();
+      window.removeEventListener('resize', backBtn.onresize);
+
+      // remove the button.
+      backBtn.parentNode.removeChild(backBtn);
+      this.messageInput.focus();
+      (<MessageView>msg.getView()).showReplyBtn()
+    }
+
+    backBtn.onmouseover = () => {
+      backBtn.style.cursor = "pointer"
+    }
+
+    backBtn.onmouseout = () => {
+      backBtn.style.cursor = "default"
+    }
+
+    window.addEventListener('resize', backBtn.onresize)
+
+    fireResize();
+
+    this.messageInput.focus();
 
   }
 }
