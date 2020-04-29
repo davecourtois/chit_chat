@@ -7,7 +7,7 @@ import "../css/room.css";
 
 import * as persistence from "globular-web-client/lib/persistence/persistencepb/persistence_pb";
 import { application, domain, applicationView } from ".";
-import { randomUUID, randomIntFromInterval } from "./utility";
+import { randomUUID, randomIntFromInterval, fireResize } from "./utility";
 import { Model } from "./model";
 import { View } from "./components/view";
 import { applicationModel } from "./index"
@@ -47,6 +47,9 @@ export class Room extends Model {
   private room_listener: string
   private leave_room_listener: string
   private join_room_listener: string
+
+  // in case the message is a reply to another message.
+  private replyTo: Message;
 
   // The reference to the room view.
   public view: RoomView;
@@ -208,6 +211,22 @@ export class Room extends Model {
   }
 
   /**
+   * Set it to reply to a given message.
+   * @param message 
+   */
+  setReplyTo(msg: Message) {
+    this.replyTo = msg;
+    this.view.setReplyTo(msg)
+  }
+
+  /**
+   * Reset the reply to message.
+   */
+  resetReplyTo() {
+    this.replyTo = null;
+  }
+
+  /**
    * Join the room.
    * @param account
    */
@@ -326,34 +345,42 @@ export class Room extends Model {
   }
 
   /**
-   * Publish a message on that room.
+   * Publish a message/reply on that room.
    */
   publish(from: string, text: string) {
     let message = new Message(from, text, new Date());
+    // If the message is a reply...
+    if (this.replyTo == null) {
+      // So here I will append the message inside the room database and when it'done I will send the
+      // object on the room event channel.
+      let rqst = new persistence.InsertOneRqst
+      rqst.setId("chitchat_db");
+      rqst.setDatabase("chitchat_db");
+      rqst.setCollection(this.name); // Each room will have it own collection. so it will simplify query to manage it.
+      rqst.setJsonstr(JSON.stringify(message));
 
-    // So here I will append the message inside the room database and when it'done I will send the
-    // object on the room event channel.
-    let rqst = new persistence.InsertOneRqst
+      Model.globular.persistenceService.insertOne(rqst, {
+        token: localStorage.getItem("user_token"),
+        application: application,
+        domain: domain
+      }).then(() => {
 
-    rqst.setId("chitchat_db");
-    rqst.setDatabase("chitchat_db");
-    rqst.setCollection(this.name); // Each room will have it own collection. so it will simplify query to manage it.
-    rqst.setJsonstr(JSON.stringify(message));
+        // The message was send with success!
+        Model.eventHub.publish(this.name + "_channel", JSON.stringify(message), false);
 
-    Model.globular.persistenceService.insertOne(rqst, {
-      token: localStorage.getItem("user_token"),
-      application: application,
-      domain: domain
-    }).then(() => {
+      }).catch((err: any) => {
+        this.view.displayMessage(err.ErrorMsg, 2000)
+      })
+    } else {
+      this.replyTo.reply(message, this,
+        () => {
+          this.resetReplyTo() // reset to normal...
+        },
+        (err: any) => {
+          this.view.displayMessage(err.ErrorMsg, 2000)
+        })
+    }
 
-      // The message was send with success!
-      Model.eventHub.publish(this.name + "_channel", JSON.stringify(message), false);
-
-    }).catch((err: any) => {
-      // this.displayMessage(err.ErrorMsg, 2000);
-    })
-
-    // Model.globular.
   }
 
   ///////////////////////////////////////////////////////////////////////
@@ -403,7 +430,7 @@ export class Room extends Model {
 
       // if it's the local user I will also disconnect the room event listener's
       let leave = applicationModel.account == undefined;
-      if(!leave){
+      if (!leave) {
         leave = applicationModel.account.name == participantId
       }
 
@@ -508,7 +535,7 @@ export class RoomView extends View {
             </nav>
           </div>
 
-          <div id="${this.uuid + "_body"}" class="col s12" style="flex: auto; margin: 0px; max-height: calc(100vh - 278px);overflow-y: auto;">
+          <div id="${this.uuid + "_body"}" class="col s12" style="flex: auto; margin: 0px; max-height: calc(100vh - 278px);overflow-y: auto; position: relative;">
            
           </div>
 
@@ -591,8 +618,42 @@ export class RoomView extends View {
     // Append the message view into the message body
     let view = new MessageView(this.body, msg, this.model);
     msg.setView(view)
-    
+
     this.body.scrollTop = this.body.scrollHeight;
+  }
+
+  // Mask the window.
+  setReplyTo(msg: Message) {
+
+    // Here I will disable the body given and increase z-index to message view
+    /*let div = document.createElement("div")
+    div.style.position = "absolute"
+    div.style.backgroundColor = "rgba(0,0,0,0.2)"
+
+    window.addEventListener('resize', () => {
+      var viewportOffset = this.body.getBoundingClientRect();
+
+      // these are relative to the viewport, i.e. the window
+      div.style.top = viewportOffset.top + "px";
+      div.style.left = viewportOffset.left + "px";
+      div.style.width = viewportOffset.width + "px";
+      div.style.height = viewportOffset.height + "px";
+    });
+
+    // Append the 
+    document.body.appendChild(div)
+
+    let messageDiv = (<any>document.getElementById(msg.uuid))
+    messageDiv.style.zIndex = 1000;
+
+    fireResize();*/
+
+    // Here I will display only the message that we want to reply...
+    
+  }
+
+  resetReplyTo() {
+
   }
 }
 

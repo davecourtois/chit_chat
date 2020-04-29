@@ -17,6 +17,10 @@ export class Message extends Model {
     private likes: Array<string>;
     private dislikes: Array<string>;
 
+    // A message can contain replies that are also message,
+    // but a replies cannot contain a reply...
+    private replies: Array<Message>;
+
     public get uuid(): string {
         return this._id;
     }
@@ -27,7 +31,7 @@ export class Message extends Model {
      * @param text The message text, can by html text.
      * @param date The message date
      */
-    constructor(public from: string, public text: string, public date: Date, id?: string, likes?: Array<string>, dislikes?: Array<string>) {
+    constructor(public from: string, public text: string, public date: Date, id?: string, likes?: Array<string>, dislikes?: Array<string>, replies?: Array<Message>) {
         super();
 
         // generate the message uuid.
@@ -44,6 +48,11 @@ export class Message extends Model {
         this.dislikes = new Array<string>();
         if (dislikes != undefined) {
             this.dislikes = dislikes;
+        }
+
+        this.replies = new Array<Message>();
+        if (replies != undefined) {
+            this.replies = replies;
         }
 
         // Here I will connect an event listner...
@@ -84,6 +93,18 @@ export class Message extends Model {
         this.dislikes = msgObj.dislikes;
     }
 
+    // Reply to a particular message in the discution.
+    reply(msg: Message, room: Room, callback: () => void, errorCallback: (err: any) => void) {
+        this.replies.push(msg);
+        // save the message.
+        this.save(room, () => {
+            // publish message change on the nework to update interfaces.
+            Model.eventHub.publish(this._id, this.toString(), false);
+            callback();
+        }, errorCallback)
+    }
+
+    // Like and Dislike funtionalities...
     whoLikesIt(): Array<string> {
         return this.likes
     }
@@ -171,6 +192,7 @@ export class Message extends Model {
                 errorCallback(msg);
             });
     }
+
 }
 
 export class MessageView extends View {
@@ -292,6 +314,11 @@ export class MessageView extends View {
 
                 }
             )
+        }
+
+        // The reply to message.
+        this.replyBtn.onclick = ()=>{
+            room.setReplyTo(<Message>this.model)
         }
     }
 

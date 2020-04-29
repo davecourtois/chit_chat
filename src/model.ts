@@ -16,4 +16,8 @@ export class Model {
       this.view = view;
   }
 
+  getView():View{
+    return this.view;
+  }
+
 }
