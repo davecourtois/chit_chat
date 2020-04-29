@@ -1,4 +1,4 @@
-import { randomUUID } from "./utility";
+import { randomUUID, isString } from "./utility";
 import { Room } from "./room";
 import { ReplaceOneRqst, ReplaceOneRsp } from "globular-web-client/lib/persistence/persistencepb/persistence_pb";
 import { application, domain, applicationModel } from ".";
@@ -19,7 +19,13 @@ export class Message extends Model {
 
     // A message can contain replies that are also message,
     // but a replies cannot contain a reply...
-    private replies: Array<Message>;
+    private _replies: Array<Message>;
+    public get replies(): Array<Message> {
+        return this._replies;
+    }
+    public set replies(value: Array<Message>) {
+        this._replies = value;
+    }
 
     public get uuid(): string {
         return this._id;
@@ -31,12 +37,12 @@ export class Message extends Model {
      * @param text The message text, can by html text.
      * @param date The message date
      */
-    constructor(public from: string, public text: string, public date: Date, id?: string, likes?: Array<string>, dislikes?: Array<string>, replies?: Array<Message>) {
+    constructor(public from: string, public text: string, public date: Date, id?: string, likes?: Array<string>, dislikes?: Array<string>, replies?: Array<any>) {
         super();
 
         // generate the message uuid.
         this._id = randomUUID();
-        if (id != undefined) {
+        if (id != undefined && isString(id)) {
             this._id = id;
         }
 
@@ -52,7 +58,10 @@ export class Message extends Model {
 
         this.replies = new Array<Message>();
         if (replies != undefined) {
-            this.replies = replies;
+            replies.forEach((obj: any) => {
+                // init a message from json-oject.
+                this._replies.push(this.fromObject(obj))
+            })
         }
 
         // Here I will connect an event listner...
@@ -78,9 +87,30 @@ export class Message extends Model {
     toString(): string {
         let view = this.view;
         this.view = null;
+        
+        // cut replies view circular references.
+        let views = new Array<View>();
+        this.replies.forEach((reply:Message)=>{
+            views.push(reply.view)
+            reply.view = null;
+        })
+
         let str = JSON.stringify(this);
+
+        // set back reference.
         this.view = view
+        views.forEach((v:View, i:number)=>{
+            this.replies[i].setView(v)
+        })
+
         return str;
+    }
+
+    // Initialyse a message from an object.
+    fromObject(obj: any): Message {
+        let msg = new Message(obj.from, obj.text, new Date(obj.date), obj._id, obj.likes, obj.dislikes, obj._replies);
+
+        return msg;
     }
 
     // Set message values from string.
@@ -91,11 +121,17 @@ export class Message extends Model {
         this.date = new Date(msgObj.Date);
         this.likes = msgObj.likes;
         this.dislikes = msgObj.dislikes;
+
+        // Now the replies.
+        msgObj._replies.forEach((obj: any) => {
+            // init a message from json-oject.
+            this._replies.push(this.fromObject(obj))
+        })
     }
 
     // Reply to a particular message in the discution.
     reply(msg: Message, room: Room, callback: () => void, errorCallback: (err: any) => void) {
-        this.replies.push(msg);
+        this._replies.push(msg);
         // save the message.
         this.save(room, () => {
             // publish message change on the nework to update interfaces.
@@ -248,7 +284,8 @@ export class MessageView extends View {
                             </span>
                         </div>
                     </div>
-                    <div class="right" style="padding-right: 25px;">
+                    <div id="${message.uuid + "_replies_div"}" class="col s11 offset-s1" style="display:none;"></div>
+                    <div class="col s12" style="display: flex; justify-content: flex-end; padding-right: 25px;">
                         <a id="${message.uuid + "_reply_btn"}" href="javascript:void(0)">reply</a>
                     </div>
                 </div>
@@ -262,6 +299,19 @@ export class MessageView extends View {
 
         // keep the div in the member variable.
         this.div = document.getElementById(message.uuid);
+
+        // Here I will display the reply...
+        let msg = (<Message>this.model);
+        if (msg.replies.length > 0) {
+            let div = document.getElementById(message.uuid + "_replies_div")
+            div.style.display = ""
+
+            msg.replies.forEach((reply: Message) => {
+                let view = new MessageView(div, reply, room);
+                view.hideReplyBtn();
+                view.div.style.marginBottom = "0px"
+            });
+        }
 
         // Now I will get the reference to user
         this.replyBtn = document.getElementById(message.uuid + "_reply_btn");
@@ -317,7 +367,7 @@ export class MessageView extends View {
         }
 
         // The reply to message.
-        this.replyBtn.onclick = ()=>{
+        this.replyBtn.onclick = () => {
             room.setReplyTo(<Message>this.model)
         }
     }
@@ -411,11 +461,11 @@ export class MessageView extends View {
         }
     }
 
-    hideReplyBtn(){
+    hideReplyBtn() {
         this.replyBtn.style.display = "none";
     }
 
-    showReplyBtn(){
+    showReplyBtn() {
         this.replyBtn.style.display = "";
     }
 

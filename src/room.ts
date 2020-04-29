@@ -284,7 +284,7 @@ export class Room extends Model {
             let msg = JSON.parse(str)
 
             // call the local listener.
-            this.onMessage(new Message(msg.from, msg.text, msg.date, msg._id, msg.likes, msg.dislikes));
+            this.onMessage(new Message(msg.from, msg.text, msg.date, msg._id, msg.likes, msg.dislikes, msg._replies));
           },
           false
         );
@@ -304,9 +304,11 @@ export class Room extends Model {
           });
 
           stream.on("data", (rsp: persistence.FindResp) => {
-            let messages = JSON.parse(rsp.getJsonstr());
+            let jsonStr = rsp.getJsonstr();
+            let messages = JSON.parse(jsonStr);
+            console.log(jsonStr)
             for (var i = 0; i < messages.length; i++) {
-              let msg = new Message(messages[i].from, messages[i].text, new Date(messages[i].date), messages[i]._id, messages[i].likes, messages[i].dislikes)
+              let msg = new Message(messages[i].from, messages[i].text, new Date(messages[i].date), messages[i]._id, messages[i].likes, messages[i].dislikes, messages[i]._replies)
               this.messages_.push(msg)
               this.view.appendMessage(msg)
             }
@@ -477,7 +479,7 @@ export class Room extends Model {
    * @param evt
    */
   onMessage(evt: any) {
-    let msg = new Message(evt.from, evt.text, new Date(evt.date), evt._id, evt.likes, evt.dislikes)
+    let msg = new Message(evt.from, evt.text, new Date(evt.date), evt._id, evt.likes, evt.dislikes, evt._replies)
     this.messages_.push(msg)
     this.view.appendMessage(msg)
   }
