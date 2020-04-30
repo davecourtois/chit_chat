@@ -33,10 +33,6 @@ export class Room extends Model {
   // * The array contain the color name at index 0 and the color hexa value at index 1
   private participantsColor: Map<string, Array<string>>;
 
-  // If a room is private the master can accept or refuse room access and
-  // also kick out participant.
-  private master_?: Account;
-
   // List of participant, that information is keep local.
   private participants_: Array<string>;
 
@@ -63,9 +59,9 @@ export class Room extends Model {
   constructor(
     public type: RoomType,
     public name: string,
+    public creator: string,
     colors: Array<any>,
     public subjects?: Array<string>,
-    master?: Account,
     participants?: Array<any>
   ) {
     super();
@@ -74,12 +70,9 @@ export class Room extends Model {
 
     // Copy the list of colors.
     this.colors = [...colors]
+
     // Set the participant color map.
     this.participantsColor = new Map<string, Array<string>>();
-
-    if (master != null) {
-      this.master_ = master;
-    }
 
     this.participants_ = new Array<string>();
     if (participants != null) {
@@ -494,6 +487,7 @@ export class Room extends Model {
       _id: this._id,
       type: this.type,
       name: this.name,
+      creator: this.creator,
       subjects: this.subjects
     };
     return JSON.stringify(room_);

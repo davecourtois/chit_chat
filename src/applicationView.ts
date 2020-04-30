@@ -302,14 +302,12 @@ export class ApplicationView extends View {
 
             if (roomType) {
                 this.model.createRoom(
-                    this.model.account,
                     roomName,
                     roomSubject,
                     RoomType.Public
                 );
             } else {
                 this.model.createRoom(
-                    this.model.account,
                     roomName,
                     roomSubject,
                     RoomType.Private

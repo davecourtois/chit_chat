@@ -4,7 +4,7 @@ import {
   GetConfigResponse
 } from "globular-web-client/lib/admin/admin_pb";
 
-import { Room, RoomType} from "./room";
+import { Room, RoomType } from "./room";
 import { Account } from "./account";
 import * as ressource from "globular-web-client/lib/ressource/ressource_pb";
 import * as jwt from "jwt-decode";
@@ -67,13 +67,13 @@ export class ApplicationModel extends Model {
 
 
     // Here I will get the list of colors...
-    readCsvFile("colorName.csv", (colors:Array<any>)=>{
+    readCsvFile("colorName.csv", (colors: Array<any>) => {
       // Get a list of colors with names.
       this.colors = colors;
 
       // Call the init callback function.
       initCallback();
-    }); 
+    });
   }
 
   private getParticipants(
@@ -124,7 +124,9 @@ export class ApplicationModel extends Model {
         rqst.setId("chitchat_db");
         rqst.setDatabase("chitchat_db");
         rqst.setCollection("Rooms");
-        rqst.setQuery("{}");
+        
+        // retreive list of created rooms...
+        rqst.setQuery(`{"creator":"${this.account.name}"}`);
         let stream = Model.globular.persistenceService.find(rqst, {
           token: localStorage.getItem("user_token"),
           application: application,
@@ -142,15 +144,15 @@ export class ApplicationModel extends Model {
             rooms.forEach((room: any) => {
               let r: Room;
               let participants_ = participants.find(x => x._id === room.name);
-              if(participants_ == undefined){
+              if (participants_ == undefined) {
                 participants_ = new Array<string>();
-              }else{
+              } else {
                 participants_ = participants_.participants;
               }
               if (room.type == 2) {
-                r = new Room(RoomType.Public, room.name, this.colors, room.subjects, null, participants_);
+                r = new Room(RoomType.Public, room.name, room.creator, this.colors, room.subjects, participants_);
                 this.rooms.set(r.id, r);
-                let keys = Array.from( this.rooms.keys() );
+                let keys = Array.from(this.rooms.keys());
                 let index = keys.indexOf(r.id);
                 this.view.appendRoom(r, index);
               } else {
@@ -168,16 +170,16 @@ export class ApplicationModel extends Model {
     // Publish a new room event.
     Model.eventHub.subscribe(
       "new_room_event",
-      (uuid: string) => {},
+      (uuid: string) => { },
       (evt: any) => {
         // Set the dir to display.
         // Here I must retreive the directory from the given path.
         let room = JSON.parse(evt);
         let r: Room;
         if (room.type == 2) {
-          r = new Room(RoomType.Public, room.name, this.colors, room.subjects, null);
+          r = new Room(RoomType.Public, room.name, this.account.name, this.colors, room.subjects);
           this.rooms.set(r.id, r);
-          let keys = Array.from( this.rooms.keys() );
+          let keys = Array.from(this.rooms.keys());
           let index = keys.indexOf(r.id);
           this.view.appendRoom(r, index);
         } else {
@@ -320,7 +322,7 @@ export class ApplicationModel extends Model {
             onError(msg);
           }
         );
-        
+
         Model.eventHub.publish("login_event", this.account.name, false);
       })
       .catch(err => {
@@ -347,7 +349,7 @@ export class ApplicationModel extends Model {
     // Set room to undefined.
     this.room = undefined;
     this.account = undefined;
-   
+
   }
 
   /**
@@ -380,7 +382,6 @@ export class ApplicationModel extends Model {
         // Refresh the token at session timeout
       })
       .catch(err => {
-        console.log(err);
         // remove old information in that case.
         localStorage.removeItem("user_token");
         localStorage.removeItem("user_name");
@@ -521,7 +522,6 @@ export class ApplicationModel extends Model {
    * @param subject The room conversation subject.
    */
   createRoom(
-    account: Account,
     name: string,
     subject: string,
     roomType: RoomType
@@ -531,7 +531,7 @@ export class ApplicationModel extends Model {
     rqst.setDatabase("chitchat_db");
     rqst.setCollection("Rooms");
 
-    let room = new Room(roomType, name, this.colors, [subject], account);
+    let room = new Room(roomType, name, this.account.name, this.colors, [subject]);
 
     rqst.setJsonstr(room.toString());
     rqst.setOptions("");
@@ -545,23 +545,37 @@ export class ApplicationModel extends Model {
       })
       .then((rsp: persistence.InsertOneRsp) => {
         Model.eventHub.publish("new_room_event", room.toString(), false);
+        // He will alse create a ressource for the room and set the accout as the ressource owner.
+        let rqst = new ressource.SetRessourceRqst
+        let r = new ressource.Ressource();
+        let path = `/${application}/rooms`;
+        r.setPath(path);
+        r.setSize(0);
+        r.setName(room.name)
+        r.setModified(Math.floor(Date.now() / 1000))
+        rqst.setRessource(r)
+
+        Model.globular.ressourceService.setRessource(rqst, {
+          token: localStorage.getItem("user_token"),
+          application: application,
+          domain: domain
+        })
+          .then(() => {
+            console.log("----> ressource was created!")
+          })
+          .catch((err: any) => {
+            if(err.message !=undefined){
+              
+              let msg = JSON.parse(err.message);
+              this.view.displayMessage(msg.ErrorMsg, 2000);
+            }else{
+              console.log(err)
+            }
+          });
       })
       .catch((err: any) => {
-        console.log(err);
         let msg = JSON.parse(err.message);
         this.view.displayMessage(msg.ErrorMsg, 2000);
       });
-  }
-
-  ///////////////////////////////////////////////////////////////////////
-  // Network events.
-  ///////////////////////////////////////////////////////////////////////
-
-  /**
-   * Event receive when a new room is created.
-   * @param evt
-   */
-  onNewRoom(evt: any) {
-    // On new room event.
   }
 }
