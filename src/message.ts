@@ -1,5 +1,5 @@
 import { randomUUID, isString } from "./utility";
-import { Room } from "./room";
+import { Room, RoomView } from "./room";
 import { ReplaceOneRqst, ReplaceOneRsp } from "globular-web-client/lib/persistence/persistencepb/persistence_pb";
 import { application, domain, applicationModel } from ".";
 import { Model } from "./model";
@@ -17,9 +17,13 @@ export class Message extends Model {
     private likes: Array<string>;
     private dislikes: Array<string>;
 
+    // If the message is a reply I will keep the reference of it parent here.
+    private parent: Message;
+
     // A message can contain replies that are also message,
     // but a replies cannot contain a reply...
     private _replies: Array<Message>;
+
     public get replies(): Array<Message> {
         return this._replies;
     }
@@ -60,7 +64,9 @@ export class Message extends Model {
         if (replies != undefined) {
             replies.forEach((obj: any) => {
                 // init a message from json-oject.
-                this._replies.push(this.fromObject(obj))
+                let reply = this.fromObject(obj);
+                reply.parent = this;
+                this._replies.push(reply)
             })
         }
 
@@ -87,20 +93,25 @@ export class Message extends Model {
     toString(): string {
         let view = this.view;
         this.view = null;
-        
+        let parent = this.parent;
+        this.parent = null;
+
         // cut replies view circular references.
         let views = new Array<View>();
-        this.replies.forEach((reply:Message)=>{
+        this.replies.forEach((reply: Message) => {
             views.push(reply.view)
             reply.view = null;
+            reply.parent = null;
         })
 
         let str = JSON.stringify(this);
 
         // set back reference.
+        this.parent = parent;
         this.view = view
-        views.forEach((v:View, i:number)=>{
+        views.forEach((v: View, i: number) => {
             this.replies[i].setView(v)
+            this.replies[i].parent = this
         })
 
         return str;
@@ -109,7 +120,6 @@ export class Message extends Model {
     // Initialyse a message from an object.
     fromObject(obj: any): Message {
         let msg = new Message(obj.from, obj.text, new Date(obj.date), obj._id, obj.likes, obj.dislikes, obj._replies);
-
         return msg;
     }
 
@@ -118,20 +128,23 @@ export class Message extends Model {
         let msgObj = JSON.parse(str);
         this.text = msgObj.text;
         this.from = msgObj.from;
-        this.date = new Date(msgObj.Date);
+        this.date = new Date(msgObj.date);
         this.likes = msgObj.likes;
         this.dislikes = msgObj.dislikes;
-
+        this._replies = new Array<Message>();
         // Now the replies.
         msgObj._replies.forEach((obj: any) => {
             // init a message from json-oject.
-            this._replies.push(this.fromObject(obj))
+            let reply = this.fromObject(obj);
+            reply.parent = this
+            this._replies.push(reply)
         })
     }
 
     // Reply to a particular message in the discution.
     reply(msg: Message, room: Room, callback: () => void, errorCallback: (err: any) => void) {
         this._replies.push(msg);
+
         // save the message.
         this.save(room, () => {
             // publish message change on the nework to update interfaces.
@@ -207,8 +220,15 @@ export class Message extends Model {
         rqst.setId("chitchat_db");
         rqst.setDatabase("chitchat_db");
         rqst.setCollection(room.name);
-        rqst.setQuery(`{"_id":"` + this._id + `"}`);
-        rqst.setValue(this.toString());
+        if(this.parent==undefined){
+            rqst.setQuery(`{"_id":"` + this._id + `"}`);
+            rqst.setValue(this.toString());
+        }else{
+            rqst.setQuery(`{"_id":"` + this.parent._id + `"}`);
+            rqst.setValue(this.parent.toString());
+        }
+
+
         rqst.setOptions(`[{"upsert": true}]`);
 
         // call persist data
@@ -244,7 +264,7 @@ export class MessageView extends View {
     private dislikeCount: any;
     private dislikeDiv: any;
     private likeDiv: any;
-
+    private room: Room;
 
     /**
      * Display the message inside it parent container.
@@ -255,12 +275,19 @@ export class MessageView extends View {
 
         super(message);
 
-        // Set the icon with the message color.
-        let color = room.getParticipantColor(message.from);
-        let border = `border: 1px solid ${color};`
+        // keep ref on the room.
+        this.room = room;
 
-        let html = `
-            <div class="row" id="${message.uuid}">
+        // keep the div in the member variable.
+        this.div = document.getElementById(message.uuid);
+
+        if (this.div == undefined) {
+            // Set the icon with the message color.
+            let color = room.getParticipantColor(message.from);
+            let border = `border: 1px solid ${color};`
+
+            let html = `
+            <div class="row" id="${message.uuid}" name="${room.id}">
                 <div class="col s12 m4 l3" style="display: flex; flex-direction: column; padding: 10px;">
                     <i class="material-icons" name="${message.from + "_ico"}" style="color:${color};">account_circle</i>
                     <span>${message.from}</span>
@@ -292,13 +319,14 @@ export class MessageView extends View {
             </div>
         `
 
-        // Initialyse the html elements.
-        let range = document.createRange();
-        let div = range.createContextualFragment(html);
-        parent.appendChild(div)
+            // Initialyse the html elements.
+            let range = document.createRange();
+            let div = range.createContextualFragment(html);
+            parent.appendChild(div)
 
-        // keep the div in the member variable.
-        this.div = document.getElementById(message.uuid);
+            // keep the div in the member variable.
+            this.div = document.getElementById(message.uuid);
+        }
 
         // Here I will display the reply...
         let msg = (<Message>this.model);
@@ -324,13 +352,20 @@ export class MessageView extends View {
         this.dislikeBtn = document.getElementById(message.uuid + "_dislike_btn");
         this.dislikeCount = document.getElementById(message.uuid + "_dislike_count");
 
-
         // Now the actions.
-        this.dislikeBtn.onmouseover = this.likeBtn.onmouseover = function () {
+        this.likeBtn.onmouseover = function () {
             this.style.cursor = "pointer"
         }
 
-        this.dislikeBtn.onmouseleave = this.likeBtn.onmouseleave = function () {
+        this.dislikeBtn.onmouseover = function () {
+            this.style.cursor = "pointer"
+        }
+
+        this.dislikeBtn.onmouseleave = function () {
+            this.style.cursor = "default"
+        }
+
+        this.likeBtn.onmouseleave = function () {
             this.style.cursor = "default"
         }
 
@@ -368,7 +403,7 @@ export class MessageView extends View {
 
         // The reply to message.
         this.replyBtn.onclick = () => {
-            room.setReplyTo(<Message>this.model)
+            this.room.setReplyTo(<Message>this.model)
         }
     }
 
@@ -461,6 +496,14 @@ export class MessageView extends View {
         }
     }
 
+    hide() {
+        this.div.style.display = "none";
+    }
+
+    show() {
+        this.div.style.display = "";
+    }
+
     hideReplyBtn() {
         this.replyBtn.style.display = "none";
     }
@@ -475,5 +518,19 @@ export class MessageView extends View {
     refresh() {
         this.dislikeCount.innerHTML = (<Message>this.model).howManyDislikes().toString()
         this.likeCount.innerHTML = (<Message>this.model).howManyLikes().toString()
+        let msg = (<Message>this.model);
+        console.log(msg)
+        if (msg.replies.length > 0) {
+            let div = document.getElementById(msg.uuid + "_replies_div")
+            div.style.display = ""
+            div.innerHTML = ""
+            msg.replies.forEach((reply: Message) => {
+                let view = new MessageView(div, reply, this.room);
+                view.hideReplyBtn();
+                view.div.style.marginBottom = "0px"
+            });
+
+            this.room.view.scrollDown();
+        }
     }
 }

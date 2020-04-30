@@ -4,24 +4,13 @@ import {
   GetConfigResponse
 } from "globular-web-client/lib/admin/admin_pb";
 
-import { Room, RoomType, RoomView } from "./room";
+import { Room, RoomType} from "./room";
 import { Account } from "./account";
 import * as ressource from "globular-web-client/lib/ressource/ressource_pb";
 import * as jwt from "jwt-decode";
 import * as persistence from "globular-web-client/lib/persistence/persistencepb/persistence_pb";
-import {
-  CreateConnectionRqst,
-  Connection,
-  StoreType,
-  OpenRqst,
-  CloseRqst,
-  SetItemRequest,
-  GetItemRequest,
-  GetItemResponse
-} from "globular-web-client/lib/storage/storagepb/storage_pb";
-import { Uint8ToBase64, decode64 } from "./utility.js";
 import { ApplicationView } from "./applicationView";
-import { application, domain, downloadFileHttp, readCsvFile } from ".";
+import { application, domain, readCsvFile } from ".";
 import { Model } from "./model";
 
 /**
@@ -269,14 +258,6 @@ export class ApplicationModel extends Model {
         // Callback on login.
         this.account = new Account(name, email);
         onRegister(this.account);
-
-        // Refresh the token at session timeout
-        setTimeout(() => {
-          this.refreshToken((account: Account) => {
-            console.log(decoded);
-            console.log("refresh the token for ", account.name);
-          }, onError);
-        }, Model.globular.config.SessionTimeout.valueOf()); // 1 second before token expire.
       })
       .catch((err: any) => {
         console.log(err);
@@ -285,101 +266,6 @@ export class ApplicationModel extends Model {
       });
 
     return null;
-  }
-
-  /**
-   * A combination of storage service and ressource service. You can
-   * store an object and give access permission to it in the admin.
-   * @param path The path of the ressource to be store
-   * @param name The name (id) of the object to store.
-   * @param object The object to store.
-   */
-  setStorageObject(path: string, name: string, object: any) {
-    // The object will be save in the storage service...
-    let rqst = new SetItemRequest();
-    rqst.setId(this.account.name);
-    rqst.setKey(path + "/" + name);
-    let objJsonB64 = Buffer.from(JSON.stringify(object)).toString("base64");
-    rqst.setValue(objJsonB64); // set the base64 object
-    // Save the object...
-    Model.globular.storageService
-      .setItem(rqst, {
-        token: localStorage.getItem("user_token"),
-        path: path + "/" + name,
-        applicaiton: application
-      })
-      .then(() => {
-        // Now I will create a ressource to manage access the newly create object...
-        let rqst = new ressource.SetRessourceRqst();
-        let r = new ressource.Ressource();
-        r.setName(name);
-        r.setPath(path);
-        r.setModified(Date.now());
-
-        // Set the size of the data...
-        r.setSize(4 * Math.ceil(objJsonB64.length / 3));
-        rqst.setRessource(r);
-
-        Model.globular.ressourceService
-          .setRessource(rqst, {
-            token: localStorage.getItem("user_token"),
-            applicaiton: application
-          })
-          .then(() => {
-            console.log("item and ressource for ", path, name, "was saved!");
-            // Test read it back...
-            this.getStorageObject(
-              path,
-              name,
-              (object: any) => {
-                console.log("---> retreived object: ", object);
-              },
-              (err: any) => {
-                console.log(err);
-              }
-            );
-          })
-          .catch(err => {
-            console.log(err);
-          });
-      })
-      .catch(err => {
-        console.log(err);
-      });
-  }
-
-  /**
-   * Retreive object from storage service.
-   * @param path The path of the ressource.
-   * @param name The name (id) of the object to retreive
-   * @param callback In case of a susscess the object will be in the oject parameter of the callback
-   * @param errorCallback In case of error the error will be in the err parameter of the callback
-   */
-  getStorageObject(
-    path: string,
-    name: string,
-    callback: (object: any) => void,
-    errorCallback: (err: any) => void
-  ) {
-    let rqst = new GetItemRequest();
-    rqst.setId(this.account.name); // the connection id
-    rqst.setKey(path + "/" + name);
-    Model.globular.storageService
-      .getItem(rqst, {
-        token: localStorage.getItem("user_token"),
-        path: path + "/" + name,
-        applicaiton: application
-      })
-      .then((rsp: GetItemResponse) => {
-        // get back the object store from setStorageObject.
-        var str64 = Uint8ToBase64(rsp.getResult());
-        var jsonStr = decode64(str64);
-        var obj = JSON.parse(jsonStr);
-        callback(obj);
-      })
-      .catch(err => {
-        errorCallback(err);
-      });
   }
 
   /**
@@ -410,7 +296,6 @@ export class ApplicationModel extends Model {
         localStorage.setItem("user_email", email);
         localStorage.setItem("user_name", userName);
 
-
         this.account = new Account(userName, email);
 
         //here I will remove the participant
@@ -436,14 +321,6 @@ export class ApplicationModel extends Model {
           }
         );
         
-        // Refresh the token at session timeout
-        setTimeout(() => {
-          this.refreshToken((account: Account) => {
-            console.log(decoded);
-            console.log("refresh the token for ", account.name);
-          }, onError);
-        }, Model.globular.config.SessionTimeout.valueOf()); // 1 second before token expire.
-
         Model.eventHub.publish("login_event", this.account.name, false);
       })
       .catch(err => {
@@ -501,12 +378,6 @@ export class ApplicationModel extends Model {
       .refreshToken(rqst)
       .then((rsp: ressource.RefreshTokenRsp) => {
         // Refresh the token at session timeout
-        setTimeout(() => {
-          this.refreshToken((account: Account) => {
-            console.log(decoded);
-            console.log("refresh the token for ", account.name);
-          }, onError);
-        }, Model.globular.config.SessionTimeout.valueOf()); // 1 second before token expire.
       })
       .catch(err => {
         console.log(err);

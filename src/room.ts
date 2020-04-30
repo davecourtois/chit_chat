@@ -210,8 +210,9 @@ export class Room extends Model {
    * Append a message into the list of room message.
    * @param message 
    */
-  appendMessage(message: Message) {
-    this.messages_.push(message)
+  appendMessage(msg: Message) {
+    this.view.createMessageView(msg)
+    this.messages_.push(msg)
   }
 
   /**
@@ -304,20 +305,15 @@ export class Room extends Model {
           });
 
           stream.on("data", (rsp: persistence.FindResp) => {
-            let jsonStr = rsp.getJsonstr();
-            let messages = JSON.parse(jsonStr);
-            console.log(jsonStr)
+            let messages = JSON.parse(rsp.getJsonstr())
             for (var i = 0; i < messages.length; i++) {
-              let msg = new Message(messages[i].from, messages[i].text, new Date(messages[i].date), messages[i]._id, messages[i].likes, messages[i].dislikes, messages[i]._replies)
-              this.messages_.push(msg)
-              this.view.appendMessage(msg)
+              this.appendMessage(new Message(messages[i].from, messages[i].text, new Date(messages[i].date), messages[i]._id, messages[i].likes, messages[i].dislikes, messages[i]._replies))
             }
-
           });
 
           stream.on("status", status => {
             if (status.code != 0) {
-
+              console.log(status.details)
             }
           })
         }
@@ -354,7 +350,7 @@ export class Room extends Model {
    * Publish a message/reply on that room.
    */
   publish(from: string, text: string) {
-    let message = new Message(from, text, new Date());
+    let message = new Message(from, text, new Date(), randomUUID());
     // If the message is a reply...
     if (this.replyTo == null) {
       // So here I will append the message inside the room database and when it'done I will send the
@@ -372,7 +368,7 @@ export class Room extends Model {
       }).then(() => {
 
         // The message was send with success!
-        Model.eventHub.publish(this.name + "_channel", JSON.stringify(message), false);
+        Model.eventHub.publish(this.name + "_channel", message.toString(), false);
 
       }).catch((err: any) => {
         this.view.displayMessage(err.ErrorMsg, 2000)
@@ -380,7 +376,7 @@ export class Room extends Model {
     } else {
       this.replyTo.reply(message, this,
         () => {
-          this.resetReplyTo() // reset to normal...
+          // Nothing here...
         },
         (err: any) => {
           this.view.displayMessage(err.ErrorMsg, 2000)
@@ -480,8 +476,14 @@ export class Room extends Model {
    */
   onMessage(evt: any) {
     let msg = new Message(evt.from, evt.text, new Date(evt.date), evt._id, evt.likes, evt.dislikes, evt._replies)
-    this.messages_.push(msg)
-    this.view.appendMessage(msg)
+    this.appendMessage(msg)
+
+    // in case the message is a reply to another message I will hide incomming message 
+    // that are not releated to this message.
+    if(this.replyTo != undefined){
+      let view = <MessageView> msg.getView()
+      view.hide();
+    }
   }
 
   /**
@@ -624,7 +626,12 @@ export class RoomView extends View {
   }
 
   // Display the room...
-  appendMessage(msg: Message) {
+  createMessageView(msg: Message) {
+    // dont recreate already existing view.
+    if(msg.getView() != undefined){
+      return
+    }
+
     // Append the message view into the message body
     let view = new MessageView(this.body, msg, this.model);
     msg.setView(view)
@@ -655,11 +662,11 @@ export class RoomView extends View {
 
     // Keep the event listener in the object itself.
     backBtn.onresize = () => {
-      var viewportOffset = msgDiv.getBoundingClientRect();
+      var viewportOffset = this.body.getBoundingClientRect();
       // these are relative to the viewport, i.e. the window
       var top = viewportOffset.top;
       var left = viewportOffset.left;
-      backBtn.style.top = top + (msgDiv.offsetHeight - backBtn.offsetHeight) / 2 + "px";
+      backBtn.style.top = top + (this.body.offsetHeight - backBtn.offsetHeight) / 2 + "px";
       backBtn.style.left = left - backBtn.offsetWidth - 10 + "px";
     }
 
