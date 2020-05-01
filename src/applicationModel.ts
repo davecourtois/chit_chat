@@ -86,7 +86,7 @@ export class ApplicationModel extends Model {
     rqst.setId(database);
     rqst.setDatabase(database);
     rqst.setCollection(collection);
-    rqst.setOptions("");
+    rqst.setOptions(`[{"Projection":{"messages":0}}]`); // do not take all messages here.
 
     // { $group : { _id : "$author", books: { $push: "$title" } } }
     let pipeline = `[{"$group":{"_id": "$room", "participants": {"$push":"$participant"}}}]`;
@@ -124,7 +124,8 @@ export class ApplicationModel extends Model {
         rqst.setId("chitchat_db");
         rqst.setDatabase("chitchat_db");
         rqst.setCollection("Rooms");
-        
+        rqst.setOptions("[]")
+
         // retreive list of created rooms...
         rqst.setQuery(`{"creator":"${this.account.name}"}`);
         let stream = Model.globular.persistenceService.find(rqst, {
@@ -544,7 +545,7 @@ export class ApplicationModel extends Model {
         domain: domain
       })
       .then((rsp: persistence.InsertOneRsp) => {
-        Model.eventHub.publish("new_room_event", room.toString(), false);
+
         // He will alse create a ressource for the room and set the accout as the ressource owner.
         let rqst = new ressource.SetRessourceRqst
         let r = new ressource.Ressource();
@@ -561,21 +562,14 @@ export class ApplicationModel extends Model {
           domain: domain
         })
           .then(() => {
-            console.log("----> ressource was created!")
+            Model.eventHub.publish("new_room_event", room.toString(), false);
           })
           .catch((err: any) => {
-            if(err.message !=undefined){
-              
-              let msg = JSON.parse(err.message);
-              this.view.displayMessage(msg.ErrorMsg, 2000);
-            }else{
-              console.log(err)
-            }
+            this.view.displayMessage(err, 2000);
           });
       })
       .catch((err: any) => {
-        let msg = JSON.parse(err.message);
-        this.view.displayMessage(msg.ErrorMsg, 2000);
+        this.view.displayMessage(err, 2000);
       });
   }
 }

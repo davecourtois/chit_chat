@@ -23,10 +23,36 @@ export class ApplicationView extends View {
 
     // The refresh room channel.
     private refresh_rooms_listeners: Map<string, string>;
+    private delete_room_listener: string;
 
     constructor(model: ApplicationModel) {
         // call the view constructor here.
         super(model);
+
+        Model.eventHub.subscribe("delete_room_channel", 
+        (uuid:string)=>{
+            this.delete_room_listener = uuid;
+        }, 
+        (roomId: string)=>{
+            // disconnect event listners.
+            Model.eventHub.unSubscribe("delete_room_channel", this.delete_room_listener);
+            Model.eventHub.unSubscribe("refresh_rooms_channel", this.refresh_rooms_listeners.get(roomId));
+
+            // I will leave the room...
+            if(this.model.room.name == roomId){
+                this.model.room.leave(this.model.account)
+            }
+
+            // I will remove the side menu
+            let roomSideMenu = document.getElementById(roomId + "_side_menu");
+            if(roomSideMenu != undefined){
+                roomSideMenu.parentNode.removeChild(roomSideMenu)
+            }
+
+            this.displayMessage("The room " + roomId + " was deleted!", 3000)
+            
+
+        }, true)
 
         // keep the map of the refresh room listeners...
         this.refresh_rooms_listeners = new  Map<string, string>();
@@ -131,7 +157,7 @@ export class ApplicationView extends View {
                         this.openSession(account);
                     },
                     (err: any) => {
-                        this.displayMessage(err.ErrorMsg, 2000);
+                        this.displayMessage(err, 2000);
                     }
                 );
             };
@@ -164,7 +190,7 @@ export class ApplicationView extends View {
                         this.openSession(account);
                     },
                     (err: any) => {
-                        this.displayMessage(err.ErrorMsg, 2000);
+                        this.displayMessage(err, 2000);
                     }
                 );
             };
@@ -221,7 +247,12 @@ export class ApplicationView extends View {
         let elements = document.createRange().createContextualFragment(`
         <li>
             <a data-target="modal1" class="modal-trigger" style="display:none;"  id="modal_trigger"></a>
-            <a style="padding: 0 16px;" class="waves-effect waves-teal"><div style="display:flex;"><span style="flex-grow: 1;">Rooms</span> <i id="add_room_btn" class="material-icons" style="align-self: center;">add_circle</i></div></a>
+            <a style="padding: 0 16px;" class="waves-effect waves-teal">
+                <div style="display:flex;">
+                    <span style="flex-grow: 1;" tile="Discutions you have created">My Discutions</span> 
+                    <i id="add_room_btn" class="material-icons" style="align-self: center;">add_circle</i>
+                </div>
+            </a>
         </li>
         <li>
             <ul class="collapsible collapsible-accordion" id="roomList">
@@ -236,52 +267,53 @@ export class ApplicationView extends View {
         modal.className = "modal open";
         modal.id = "modal1";
         modal.style.maxWidth = "550px";
-        modal.innerHTML = `<div class="modal-content">
-        <div class="row">
-        <div class="col s4">
-            Room Name:
-        </div>
-        <div class="col s8">
-            <div class="input-field inline">
-                <input id="room_name_input" type="text">       
-                <span></span>
+        modal.innerHTML = `
+        <div class="modal-content">
+            <div class="row">
+            <div class="col s4">
+                Room Name:
+            </div>
+            <div class="col s8">
+                <div class="input-field inline">
+                    <input id="room_name_input" type="text">       
+                    <span></span>
+                </div>
+            </div>
+            </div>
+            <div class="row">
+            <div class="col s4">
+                Subject:
+            </div>
+            <div class="col s8">
+                <div class="input-field inline">
+                    <input id="room_subject_input" type="text">       
+                    <span></span>
+                </div>
+            </div>
+            </div>
+            <div class="row">
+            <div class="col s4">
+                Room type:
+            </div>
+            <div class="col s8">
+                <p>
+                    <label>
+                    <input id="room_type_public" name="group1" type="radio" checked />
+                    <span>Public</span>
+                    </label>
+                </p>
+                <p>
+                    <label>
+                    <input name="group1" type="radio"  />
+                    <span>Private</span>
+                    </label>
+                </p>
+            </div>
             </div>
         </div>
-        </div>
-        <div class="row">
-        <div class="col s4">
-            Subject:
-        </div>
-        <div class="col s8">
-            <div class="input-field inline">
-                <input id="room_subject_input" type="text">       
-                <span></span>
-            </div>
-        </div>
-        </div>
-        <div class="row">
-        <div class="col s4">
-            Room type:
-        </div>
-        <div class="col s8">
-            <p>
-                <label>
-                <input id="room_type_public" name="group1" type="radio" checked />
-                <span>Public</span>
-                </label>
-            </p>
-            <p>
-                <label>
-                <input name="group1" type="radio"  />
-                <span>Private</span>
-                </label>
-            </p>
-        </div>
-        </div>
-    </div>
-    <div class="modal-footer">
-        <a id="room_create_btn" class="modal-close waves-effect waves-green btn-flat">Create</a>        
-    </div>`;
+        <div class="modal-footer">
+            <a id="room_create_btn" class="modal-close waves-effect waves-green btn-flat">Create</a>        
+        </div>`;
 
         document.body.appendChild(modal);
         M.Modal.init(modal, {});
@@ -354,7 +386,7 @@ export class ApplicationView extends View {
                         );
                     },
                     (err: any) => {
-                        this.displayMessage(err.ErrorMsg, 2000);
+                        this.displayMessage(err, 2000);
                     }
                 );
             };
@@ -386,7 +418,7 @@ export class ApplicationView extends View {
                         this.displayMessage(message, 2000);
                     },
                     (err: any) => {
-                        this.displayMessage(err.ErrorMsg, 2000);
+                        this.displayMessage(err, 2000);
                     }
                 );
             };
@@ -435,14 +467,21 @@ export class ApplicationView extends View {
             (uuid: string) => {
                 Model.eventHub.unSubscribe("refresh_rooms_channel", uuid);
             });
+
+        this.refresh_rooms_listeners.clear();
     }
 
     appendRoom(room: Room, index: number) {
+        // do nothing if the side menu already exist.
+        if(document.getElementById(room.name + "_side_menu") != undefined){
+            return
+        }
+
         let roomList = document.getElementById("roomList");
         let uuid = randomUUID();
         let uuid2 = randomUUID();
         let txt = `
-        <li>
+        <li id="${room.name + "_side_menu"}">
             <a class="collapsible-header waves-effect waves-teal" id="${uuid}" > 
                 <i id="${uuid + "_join_btn"}" name="join_btn" class="material-icons" title="join the room ${room.name}" >input</i> 
                 <span id="${uuid + "_count"}" class="badge">${room.participants.length.toString()}</span> ${room.name}</a>
@@ -453,7 +492,7 @@ export class ApplicationView extends View {
             </div>
         </li>
         `;
-
+        
         let elements = document.createRange().createContextualFragment(txt);
         roomList.appendChild(elements);
 

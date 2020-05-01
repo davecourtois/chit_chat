@@ -81,7 +81,7 @@ function main() {
                     this.openSession(account);
                 },
                 (err: any, account: Account) => {
-                    this.displayMessage(err.ErrorMsg, 2000);
+                    this.displayMessage(err, 2000);
                     // close the session if no token are available.
                     this.closeSession(account);
                 }

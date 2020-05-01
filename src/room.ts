@@ -12,6 +12,7 @@ import { Model } from "./model";
 import { View } from "./components/view";
 import { applicationModel } from "./index"
 import { MessageInput } from "./components/messageInput";
+import { RemoveRessourceRqst, Ressource } from "globular-web-client/lib/ressource/ressource_pb";
 
 export enum RoomType {
   Private = 1,
@@ -43,6 +44,8 @@ export class Room extends Model {
   private room_listener: string
   private leave_room_listener: string
   private join_room_listener: string
+  private delete_room_listener: string
+
 
   // in case the message is a reply to another message.
   private replyTo: Message;
@@ -150,8 +153,7 @@ export class Room extends Model {
 
       })
       .catch((err: any) => {
-        let msg = JSON.parse(err.message);
-        this.view.displayMessage(msg.ErrorMsg, 2000);
+        this.view.displayMessage(err, 2000);
       });
   }
 
@@ -254,8 +256,19 @@ export class Room extends Model {
                   (uuid: string) => {
                     this.leave_room_listener = uuid;
 
-                    // publish the message.
-                    Room.eventHub.publish("join_room_" + this.name + "_channel", account.name, false);
+                    Room.eventHub.subscribe("delete_room_channel",
+                      (uuid: string) => {
+                        this.delete_room_listener = uuid
+                        // publish the message.
+                        Room.eventHub.publish("join_room_" + this.name + "_channel", account.name, false);
+
+                      },
+                      (roomId: string) => {
+                        if (this.name == roomId) {
+                          this.onDelete()
+                        }
+                      }, false)
+
 
                   },
                   // On event.
@@ -289,8 +302,10 @@ export class Room extends Model {
           let rqst = new persistence.FindRqst
           rqst.setId("chitchat_db");
           rqst.setDatabase("chitchat_db");
-          rqst.setCollection(this.name);
-          rqst.setQuery("{}")
+          rqst.setCollection("Rooms");
+          rqst.setQuery(`{"_id":"${this.name}"}`)
+          rqst.setOptions(`[{"Projection":{"_id":0, "messages":1}}]`)
+
           let stream = Model.globular.persistenceService.find(rqst, {
             token: localStorage.getItem("user_token"),
             application: application,
@@ -298,7 +313,9 @@ export class Room extends Model {
           });
 
           stream.on("data", (rsp: persistence.FindResp) => {
-            let messages = JSON.parse(rsp.getJsonstr())
+            let data = JSON.parse(rsp.getJsonstr())
+            console.log(data)
+            let messages = data[0].messages;
             for (var i = 0; i < messages.length; i++) {
               this.appendMessage(new Message(messages[i].from, messages[i].text, new Date(messages[i].date), messages[i]._id, messages[i].likes, messages[i].dislikes, messages[i]._replies))
             }
@@ -346,26 +363,31 @@ export class Room extends Model {
     let message = new Message(from, text, new Date(), randomUUID());
     // If the message is a reply...
     if (this.replyTo == null) {
+
       // So here I will append the message inside the room database and when it'done I will send the
       // object on the room event channel.
-      let rqst = new persistence.InsertOneRqst
+      let rqst = new persistence.UpdateOneRqst();
       rqst.setId("chitchat_db");
       rqst.setDatabase("chitchat_db");
-      rqst.setCollection(this.name); // Each room will have it own collection. so it will simplify query to manage it.
-      rqst.setJsonstr(JSON.stringify(message));
+      rqst.setCollection("Rooms");
 
-      Model.globular.persistenceService.insertOne(rqst, {
-        token: localStorage.getItem("user_token"),
-        application: application,
-        domain: domain
-      }).then(() => {
+      rqst.setQuery(`{"_id":"${this.name}"}`);
+      rqst.setValue(`{"$push":{"messages":${message.toString()}}}`);
 
-        // The message was send with success!
-        Model.eventHub.publish(this.name + "_channel", message.toString(), false);
-
-      }).catch((err: any) => {
-        this.view.displayMessage(err.ErrorMsg, 2000)
-      })
+      // call persist data
+      Model.globular.persistenceService
+        .updateOne(rqst, {
+          token: localStorage.getItem("user_token"),
+          application: application,
+          domain: domain
+        })
+        .then((rsp: persistence.UpdateOneRsp) => {
+          // The message was send with success!
+          Model.eventHub.publish(this.name + "_channel", message.toString(), false);
+        })
+        .catch((err: any) => {
+          this.view.displayMessage(err, 2000)
+        });
     } else {
       this.replyTo.reply(message, this,
         () => {
@@ -375,7 +397,61 @@ export class Room extends Model {
           this.view.displayMessage(err.ErrorMsg, 2000)
         })
     }
+  }
 
+  delete() {
+    // The first step will be to delete the room collection that contain message.
+    // room collection has been deleted.
+    let rqst = new persistence.DeleteOneRqst
+    rqst.setId("chitchat_db");
+    rqst.setDatabase("chitchat_db");
+    rqst.setCollection("Rooms");
+    rqst.setQuery(`{"_id":"${this.name}"}`);
+
+    Model.globular.persistenceService.deleteOne(rqst, {
+      token: localStorage.getItem("user_token"),
+      application: application,
+      domain: domain,
+      path: `/${application}/rooms/` + this.name
+    }).then(() => {
+      // So here I will dispatch a message to keep all connected users up to date.
+      let rqst = new persistence.DeleteRqst
+      rqst.setId("chitchat_db");
+      rqst.setDatabase("chitchat_db");
+      rqst.setCollection("Participants");
+      rqst.setQuery(`{"room":"${this.name}"}`);
+
+      Model.globular.persistenceService.delete(rqst, {
+        token: localStorage.getItem("user_token"),
+        application: application,
+        domain: domain,
+        path: `/${application}/rooms/` + this.name
+      }).then(() => {
+        // So here I will dispatch a message to keep all connected users up to date.
+        let rqst = new RemoveRessourceRqst
+        let r = new Ressource
+        r.setPath(`/${application}/rooms`);
+        r.setSize(0);
+        r.setName(this.name)
+        r.setModified(Math.floor(Date.now() / 1000))
+        rqst.setRessource(r)
+        Model.globular.ressourceService.removeRessource(rqst, {
+          token: localStorage.getItem("user_token"),
+          application: application,
+          domain: domain,
+          path: `/${application}/rooms/` + this.name
+        }).then(() => {
+          console.log("room " + this.name + " was deleted!")
+          Model.eventHub.publish("delete_room_channel", this.name, true)
+        }).catch((err: any) => {
+          this.view.displayMessage(err, 2000);
+        })
+      }).catch((err: any) => {
+        this.view.displayMessage(err, 2000);
+      })
+    }).catch((err: any) => {
+      this.view.displayMessage(err, 2000);
+    })
   }
 
   ///////////////////////////////////////////////////////////////////////
@@ -473,10 +549,40 @@ export class Room extends Model {
 
     // in case the message is a reply to another message I will hide incomming message 
     // that are not releated to this message.
-    if(this.replyTo != undefined){
-      let view = <MessageView> msg.getView()
+    if (this.replyTo != undefined) {
+      let view = <MessageView>msg.getView()
       view.hide();
     }
+  }
+
+  /**
+   * That function was call when a room is delete.
+   */
+  onDelete() {
+
+    // Delete messages.
+    this.messages_.forEach((msg: Message) => {
+      msg.delete() // delete local objects.
+    })
+
+    
+    // clear the message list.
+    this.messages_.splice(0, this.messages_.length)
+
+    // remove the view from it parent. Message will be also remove there.
+    this.view.element.parentNode.removeChild(this.view.element);
+
+    // disconnect the listener to display new receive message.
+    Room.eventHub.unSubscribe(this.name + "_channel", this.room_listener)
+
+    // disconnect the listener to display joinning user
+    Room.eventHub.unSubscribe("join_room_" + this.name + "_channel", this.join_room_listener)
+
+    // disconnect the listener to display leaving user
+    Room.eventHub.unSubscribe("leave_room_" + this.name + "_channel", this.leave_room_listener)
+
+    // disconnect the delete room channel
+    Room.eventHub.unSubscribe("delete_room_channel", this.delete_room_listener)
   }
 
   /**
@@ -488,7 +594,8 @@ export class Room extends Model {
       type: this.type,
       name: this.name,
       creator: this.creator,
-      subjects: this.subjects
+      subjects: this.subjects,
+      messages: new Array<any>()
     };
     return JSON.stringify(room_);
   }
@@ -531,6 +638,9 @@ export class RoomView extends View {
               <span style="padding-left:10px; flex-grow: 1;">
                 ${this.model.subjects}
               </span>
+              <i id="${this.uuid + "_delete_btn"}" class="material-icons right" style="display: none">
+                delete_forever
+              </i>
               <i id="${this.uuid + "_exit_btn"}" class="material-icons right">
                 exit_to_app
               </i>
@@ -558,7 +668,11 @@ export class RoomView extends View {
     // keep the div in the member variable.
     this.div = document.getElementById(this.uuid);
 
+    // exit discution button.
     let exitBtn = document.getElementById(this.uuid + "_exit_btn")
+
+    // delete discution button.
+    let deleteBtn = document.getElementById(this.uuid + "_delete_btn")
 
     // The body will be use to contain list of messages.
     this.body = document.getElementById(this.uuid + "_body");
@@ -572,6 +686,55 @@ export class RoomView extends View {
     //////////////////////////////////////////////////////////////////////
     // Buttons actions
     //////////////////////////////////////////////////////////////////////
+    if (this.model.creator == applicationModel.account.name) {
+      deleteBtn.style.display = "" // set visible if the logged user is the creator of the discution.
+    }
+
+    deleteBtn.onmouseover = () => {
+      deleteBtn.style.cursor = "pointer";
+    }
+
+    deleteBtn.onmouseleave = () => {
+      deleteBtn.style.cursor = "default";
+    }
+
+    deleteBtn.onclick = () => {
+      // So here I will made use of a message box to ask the use if it really want to 
+      // close the discution.
+      let cancel_btn_id = randomUUID()
+      let delete_btn_id = randomUUID()
+
+      let msgBox = this.displayMessage(`
+      <div style="diplay: flex; flex-direction: row;">
+        <div class="row">
+          <div class="col s12">Do you really want to delete that discution?</div>
+        </div>
+        <div class="row">
+          <div style="display: flex; justify-content: flex-end;">
+            <a id=${cancel_btn_id} class="waves-effect waves-light btn-small">cancel</a>
+            <a id=${delete_btn_id}  class="waves-effect waves-light btn-small" style="margin-left: 5px;">delete</a>
+          </div>
+        </div>
+      </div>`)
+
+      // get the button and set the actions.
+      let cancelBtn = document.getElementById(cancel_btn_id)
+      let deleteBtn = document.getElementById(delete_btn_id)
+
+      cancelBtn.onclick = () => {
+        msgBox.dismiss();
+      }
+
+      deleteBtn.onclick = () => {
+
+        // first of all I will remove the collection that contain the room message.
+        this.model.delete();
+
+        msgBox.dismiss();
+      }
+
+    }
+
     exitBtn.onmouseover = () => {
       exitBtn.style.cursor = "pointer";
     }
@@ -622,7 +785,7 @@ export class RoomView extends View {
   // Display the room...
   createMessageView(msg: Message) {
     // dont recreate already existing view.
-    if(msg.getView() != undefined){
+    if (msg.getView() != undefined) {
       return
     }
 

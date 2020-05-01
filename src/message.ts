@@ -1,6 +1,6 @@
 import { randomUUID, isString } from "./utility";
 import { Room, RoomView } from "./room";
-import { ReplaceOneRqst, ReplaceOneRsp } from "globular-web-client/lib/persistence/persistencepb/persistence_pb";
+import { ReplaceOneRqst, ReplaceOneRsp, UpdateOneRqst, UpdateOneRsp } from "globular-web-client/lib/persistence/persistencepb/persistence_pb";
 import { application, domain, applicationModel } from ".";
 import { Model } from "./model";
 import { View } from "./components/view";
@@ -216,29 +216,29 @@ export class Message extends Model {
 
     // Save the message...
     save(room: Room, callback: () => void, errorCallback: (err: any) => void) {
-        let rqst = new ReplaceOneRqst();
+        let rqst = new UpdateOneRqst();
         rqst.setId("chitchat_db");
         rqst.setDatabase("chitchat_db");
-        rqst.setCollection(room.name);
-        if(this.parent==undefined){
-            rqst.setQuery(`{"_id":"` + this._id + `"}`);
-            rqst.setValue(this.toString());
-        }else{
-            rqst.setQuery(`{"_id":"` + this.parent._id + `"}`);
-            rqst.setValue(this.parent.toString());
-        }
+        rqst.setCollection("Rooms");
 
+        if(this.parent==undefined){
+            rqst.setQuery(`{"_id":"${room.name}", "messages._id":"${this._id}"}`);
+            rqst.setValue(`{"$set":{"messages.$":${this.toString()}}}`);
+        }else{
+            rqst.setQuery(`{"_id":"${room.name}", "messages._id":"${this.parent._id}"}`);
+            rqst.setValue(`{"$set":{"messages.$":${this.parent.toString()}}}`);
+        }
 
         rqst.setOptions(`[{"upsert": true}]`);
 
         // call persist data
         Model.globular.persistenceService
-            .replaceOne(rqst, {
+            .updateOne(rqst, {
                 token: localStorage.getItem("user_token"),
                 application: application,
                 domain: domain
             })
-            .then((rsp: ReplaceOneRsp) => {
+            .then((rsp: UpdateOneRsp) => {
                 // Here I will return the value with it
                 callback()
             })
