@@ -22,13 +22,13 @@ export class Message extends Model {
 
     // A message can contain replies that are also message,
     // but a replies cannot contain a reply...
-    private _replies: Array<Message>;
+    private replies_: Array<Message>;
 
     public get replies(): Array<Message> {
-        return this._replies;
+        return this.replies_;
     }
     public set replies(value: Array<Message>) {
-        this._replies = value;
+        this.replies_ = value;
     }
 
     public get uuid(): string {
@@ -66,7 +66,7 @@ export class Message extends Model {
                 // init a message from json-oject.
                 let reply = this.fromObject(obj);
                 reply.parent = this;
-                this._replies.push(reply)
+                this.replies_.push(reply)
             })
         }
 
@@ -119,7 +119,7 @@ export class Message extends Model {
 
     // Initialyse a message from an object.
     fromObject(obj: any): Message {
-        let msg = new Message(obj.from, obj.text, new Date(obj.date), obj._id, obj.likes, obj.dislikes, obj._replies);
+        let msg = new Message(obj.from, obj.text, new Date(obj.date), obj._id, obj.likes, obj.dislikes, obj.replies_);
         return msg;
     }
 
@@ -131,19 +131,19 @@ export class Message extends Model {
         this.date = new Date(msgObj.date);
         this.likes = msgObj.likes;
         this.dislikes = msgObj.dislikes;
-        this._replies = new Array<Message>();
+        this.replies_ = new Array<Message>();
         // Now the replies.
-        msgObj._replies.forEach((obj: any) => {
+        msgObj.replies_.forEach((obj: any) => {
             // init a message from json-oject.
             let reply = this.fromObject(obj);
             reply.parent = this
-            this._replies.push(reply)
+            this.replies_.push(reply)
         })
     }
 
     // Reply to a particular message in the discution.
     reply(msg: Message, room: Room, callback: () => void, errorCallback: (err: any) => void) {
-        this._replies.push(msg);
+        this.replies_.push(msg);
 
         // save the message.
         this.save(room, () => {
@@ -311,7 +311,7 @@ export class MessageView extends View {
                             </span>
                         </div>
                     </div>
-                    <div id="${message.uuid + "_replies_div"}" class="col s11 offset-s1" style="display:none;"></div>
+                    <div id="${message.uuid + "replies__div"}" class="col s11 offset-s1" style="display:none;"></div>
                     <div class="col s12" style="display: flex; justify-content: flex-end; padding-right: 25px;">
                         <a id="${message.uuid + "_reply_btn"}" href="javascript:void(0)">reply</a>
                     </div>
@@ -331,7 +331,7 @@ export class MessageView extends View {
         // Here I will display the reply...
         let msg = (<Message>this.model);
         if (msg.replies.length > 0) {
-            let div = document.getElementById(message.uuid + "_replies_div")
+            let div = document.getElementById(message.uuid + "replies__div")
             div.style.display = ""
 
             msg.replies.forEach((reply: Message) => {
@@ -521,7 +521,7 @@ export class MessageView extends View {
         let msg = (<Message>this.model);
         console.log(msg)
         if (msg.replies.length > 0) {
-            let div = document.getElementById(msg.uuid + "_replies_div")
+            let div = document.getElementById(msg.uuid + "replies__div")
             div.style.display = ""
             div.innerHTML = ""
             msg.replies.forEach((reply: Message) => {

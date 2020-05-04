@@ -77,6 +77,7 @@ export class ApplicationModel extends Model {
   }
 
   private getParticipants(
+    room: string,
     callback: (resuts: Array<any>) => void,
     errorCallback: (err: any) => void
   ) {
@@ -87,9 +88,10 @@ export class ApplicationModel extends Model {
     rqst.setDatabase(database);
     rqst.setCollection(collection);
     rqst.setOptions(`[{"Projection":{"messages":0}}]`); // do not take all messages here.
-
-    // { $group : { _id : "$author", books: { $push: "$title" } } }
-    let pipeline = `[{"$group":{"_id": "$room", "participants": {"$push":"$participant"}}}]`;
+    let pipeline = `[
+      {"$match":{"room":"${room}"}},
+      {"$group":{"_id": "$room", "participants": {"$push":"$participant"}}}
+    ]`;
 
     rqst.setPipeline(pipeline);
 
@@ -108,65 +110,137 @@ export class ApplicationModel extends Model {
 
     stream.on("status", status => {
       if (status.code == 0) {
-        callback(results);
+        if (results[0] != undefined) {
+          callback(results[0].participants);
+        } else {
+          callback([]) // return empty array.
+        }
       } else {
         errorCallback({ message: status.details });
       }
     });
   }
 
+  /**
+   * Return the list of room where the participant has made at least one comment.
+   * @param participant The participant
+   * @param callback The success callback
+   * @param errorCallback The error callback.
+   */
+  private getParticipating(participant: string, callback: (rooms: Array<any>) => void, errorCallback: (err: any) => void) {
+    // Use aggreagtion to retreive existing room.
+    let room_query = `[
+                    { "$match": {"$text": { "$search": "${participant}" } } },
+                    { "$project": {"_id":"$_id"} }
+                  ]`
+
+    let rqst = new persistence.AggregateRqst
+    rqst.setId("chitchat_db");
+    rqst.setDatabase("chitchat_db");
+    rqst.setCollection("Rooms");
+
+    rqst.setPipeline(room_query)
+
+    let stream = Model.globular.persistenceService.aggregate(rqst, {
+      token: localStorage.getItem("user_token"),
+      application: application,
+      domain: domain
+    });
+
+    // clear the workspace.
+    document.getElementById("workspace").innerHTML = ""
+    let div = document.createElement("div");
+    document.getElementById("workspace").appendChild(div)
+
+    stream.on("data", (rsp: persistence.AggregateResp) => {
+      let data = JSON.parse(rsp.getJsonstr())
+      // dispach the result locally...
+      callback(data)
+    });
+
+    stream.on("status", status => {
+      if (status.code != 0) {
+        console.log(status.details)
+      }
+    })
+  }
+
+  /**
+   * Append a room into the list of room.
+   * @param room 
+   * @param callback 
+   * @param errorCallback 
+   */
+  appendRoom(room: any, callback: (room: Room) => void, errorCallback: (err: any) => void) {
+    this.getParticipants(
+      room._id,
+      (participants: Array<any>) => {
+        let r: Room;
+        let participants_ = participants.find(x => x._id === room.name);
+        if (participants_ == undefined) {
+          participants_ = new Array<string>();
+        } else {
+          participants_ = participants_.participants;
+        }
+        if (room.type == 2) {
+          r = new Room(RoomType.Public, room.name, room.creator, this.colors, room.subjects, participants_);
+          this.rooms.set(r.id, r);
+          let keys = Array.from(this.rooms.keys());
+          let index = keys.indexOf(r.id);
+          this.view.appendRoom(r, index);
+
+          // return the room...
+          callback(r)
+
+        } else {
+          console.log("Private Room need to be implemented");
+        }
+      }, (err: any) => {
+        errorCallback(err)
+      })
+  }
+
+  /**
+   * Init rooms for the active acount. The rooms are all active room
+   * where the user has send a message or is the creator.
+   */
   initRooms() {
 
-    this.getParticipants(
-      (participants: Array<any>) => {
-        // List of Rooms
-        let rqst = new persistence.FindRqst();
-        rqst.setId("chitchat_db");
-        rqst.setDatabase("chitchat_db");
-        rqst.setCollection("Rooms");
-        rqst.setOptions("[]")
+    // Return the list of rooms.
+    this.getParticipating(this.account.name,
+      (rooms: Array<any>) => {
+        for (var i = 0; i < rooms.length; i++) {
+          // Get the room data
+          let rqst = new persistence.FindOneRqst
+          rqst.setId("chitchat_db");
+          rqst.setDatabase("chitchat_db");
+          rqst.setCollection("Rooms");
+          rqst.setQuery(`{"_id":"${rooms[i]._id}"}`)
+          rqst.setOptions(`[{"Projection":{"messages":0}}]`)
 
-        // retreive list of created rooms...
-        rqst.setQuery(`{"creator":"${this.account.name}"}`);
-        let stream = Model.globular.persistenceService.find(rqst, {
-          token: localStorage.getItem("user_token"),
-          application: application,
-          domain: domain
-        });
+          Model.globular.persistenceService.findOne(rqst, {
+            token: localStorage.getItem("user_token"),
+            application: application,
+            domain: domain
+          }).then((rsp: persistence.FindResp) => {
+            let room = JSON.parse(rsp.getJsonstr());
+            // append it to the application 
+            this.appendRoom(room, (r: Room) => {
+              /** nothing todo here. */
+            },
+              (err: any) => {
+                console.log(err)
+              });
 
-        var rooms = new Array<any>();
+          }).catch((err: any) => {
+            console.log(err);
+          });
+        }
 
-        stream.on("data", (rsp: persistence.FindResp) => {
-          rooms = rooms.concat(JSON.parse(rsp.getJsonstr()));
-        });
-
-        stream.on("status", status => {
-          if (status.code == 0) {
-            rooms.forEach((room: any) => {
-              let r: Room;
-              let participants_ = participants.find(x => x._id === room.name);
-              if (participants_ == undefined) {
-                participants_ = new Array<string>();
-              } else {
-                participants_ = participants_.participants;
-              }
-              if (room.type == 2) {
-                r = new Room(RoomType.Public, room.name, room.creator, this.colors, room.subjects, participants_);
-                this.rooms.set(r.id, r);
-                let keys = Array.from(this.rooms.keys());
-                let index = keys.indexOf(r.id);
-                this.view.appendRoom(r, index);
-              } else {
-                console.log("Private Room need to be implemented");
-              }
-            });
-          }
-        });
       },
       (err: any) => {
-        console.log(err);
-      }
-    );
+
+      })
 
     // Publish a new room event.
     Model.eventHub.subscribe(

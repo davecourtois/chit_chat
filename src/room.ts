@@ -291,7 +291,7 @@ export class Room extends Model {
             let msg = JSON.parse(str)
 
             // call the local listener.
-            this.onMessage(new Message(msg.from, msg.text, msg.date, msg._id, msg.likes, msg.dislikes, msg._replies));
+            this.onMessage(new Message(msg.from, msg.text, msg.date, msg._id, msg.likes, msg.dislikes, msg.replies_));
           },
           false
         );
@@ -317,7 +317,7 @@ export class Room extends Model {
             console.log(data)
             let messages = data[0].messages;
             for (var i = 0; i < messages.length; i++) {
-              this.appendMessage(new Message(messages[i].from, messages[i].text, new Date(messages[i].date), messages[i]._id, messages[i].likes, messages[i].dislikes, messages[i]._replies))
+              this.appendMessage(new Message(messages[i].from, messages[i].text, new Date(messages[i].date), messages[i]._id, messages[i].likes, messages[i].dislikes, messages[i].replies_))
             }
           });
 
@@ -544,7 +544,7 @@ export class Room extends Model {
    * @param evt
    */
   onMessage(evt: any) {
-    let msg = new Message(evt.from, evt.text, new Date(evt.date), evt._id, evt.likes, evt.dislikes, evt._replies)
+    let msg = new Message(evt.from, evt.text, new Date(evt.date), evt._id, evt.likes, evt.dislikes, evt.replies_)
     this.appendMessage(msg)
 
     // in case the message is a reply to another message I will hide incomming message 
@@ -778,6 +778,7 @@ export class RoomView extends View {
 
   }
 
+  // Set the scroll to bottom of the window.
   scrollDown() {
     this.body.scrollTop = this.body.scrollHeight;
   }

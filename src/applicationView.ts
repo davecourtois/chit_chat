@@ -13,6 +13,7 @@ import { ApplicationModel } from "./applicationModel";
 import { randomUUID, randomIntFromInterval } from "./utility";
 import { View } from "./components/view";
 import { Model } from "./model";
+import { SearchBox } from "./search";
 
 /**
  * The main user interface.
@@ -25,37 +26,40 @@ export class ApplicationView extends View {
     private refresh_rooms_listeners: Map<string, string>;
     private delete_room_listener: string;
 
+    // The seach box.
+    private searchBox: SearchBox;
+
     constructor(model: ApplicationModel) {
         // call the view constructor here.
         super(model);
 
-        Model.eventHub.subscribe("delete_room_channel", 
-        (uuid:string)=>{
-            this.delete_room_listener = uuid;
-        }, 
-        (roomId: string)=>{
-            // disconnect event listners.
-            Model.eventHub.unSubscribe("delete_room_channel", this.delete_room_listener);
-            Model.eventHub.unSubscribe("refresh_rooms_channel", this.refresh_rooms_listeners.get(roomId));
+        Model.eventHub.subscribe("delete_room_channel",
+            (uuid: string) => {
+                this.delete_room_listener = uuid;
+            },
+            (roomId: string) => {
+                // disconnect event listners.
+                Model.eventHub.unSubscribe("delete_room_channel", this.delete_room_listener);
+                Model.eventHub.unSubscribe("refresh_rooms_channel", this.refresh_rooms_listeners.get(roomId));
 
-            // I will leave the room...
-            if(this.model.room.name == roomId){
-                this.model.room.leave(this.model.account)
-            }
+                // I will leave the room...
+                if (this.model.room.name == roomId) {
+                    this.model.room.leave(this.model.account)
+                }
 
-            // I will remove the side menu
-            let roomSideMenu = document.getElementById(roomId + "_side_menu");
-            if(roomSideMenu != undefined){
-                roomSideMenu.parentNode.removeChild(roomSideMenu)
-            }
+                // I will remove the side menu
+                let roomSideMenu = document.getElementById(roomId + "_side_menu");
+                if (roomSideMenu != undefined) {
+                    roomSideMenu.parentNode.removeChild(roomSideMenu)
+                }
 
-            this.displayMessage("The room " + roomId + " was deleted!", 3000)
-            
+                this.displayMessage("The room " + roomId + " was deleted!", 3000)
 
-        }, true)
+
+            }, true)
 
         // keep the map of the refresh room listeners...
-        this.refresh_rooms_listeners = new  Map<string, string>();
+        this.refresh_rooms_listeners = new Map<string, string>();
 
         // The basic layout.
         document.body.innerHTML = `    
@@ -77,13 +81,15 @@ export class ApplicationView extends View {
         let navBarCode = `
         <div class="navbar-fixed">
             <nav id="main_nav">
-                <div class="nav-wrapper indigo darken-4">
+                <div class="nav-wrapper indigo darken-4" style="display: flex;">
                     <!--  Side menu button  -->
                     <a id="main_sidenav_lnk" href="javascript:void(0)" data-target="main_sidenav" class="sidenav-trigger" style="display: none"><i class="material-icons">menu</i></a>
 
                     <!-- Applicaiton logo -->
-                    <a href="javascript:void(0)" class="brand-logo" style="padding-left: 20px;"><img width="24" src="img/speech-bubbles.svg"></img></a>
-
+                    <a id="application_logo" href="javascript:void(0)" class="" style="padding-left: 20px;display: flex; align-self: center;"><img width="24" src="img/speech-bubbles.svg"></img></a>
+                    
+                    <div id="main_search_div" style="flex-grow: 1; display: flex; justify-content: flex-end;"></div>
+                    
                     <!-- Medium and Up navigation menu  this is a comment-->
                     <ul id="nav-mobile" class="right hide-on-med-and-down">
                         <li id="register_lnk_0"><a class="waves-effect waves-indigo" href="javascript:void(0)">REGISTER</a></li>
@@ -92,7 +98,10 @@ export class ApplicationView extends View {
                     </ul>
             
                     <!-- Small navigation menu -->
-                    <a class='right dropdown-trigger hide-on-large-only' href='#' data-target='nav-mobile-dropdown'><i class="material-icons">arrow_drop_down</i></a>
+                    <a class='right dropdown-trigger hide-on-large-only' href='#' data-target='nav-mobile-dropdown'>
+                        <i class="material-icons">arrow_drop_down</i>
+                    </a>
+
                     <ul id='nav-mobile-dropdown' class='dropdown-content'">
                         <li id="register_lnk_1"><a class="waves-effect waves-indigo" href="javascript:void(0)">REGISTER</a></li>
                         <li id="login_lnk_1"><a class="waves-effect waves-indigo" href="javascript:void(0)">LOGIN</a></li>
@@ -123,6 +132,10 @@ export class ApplicationView extends View {
 
         // Set the media image
         M.Materialbox.init(document.querySelectorAll(".materialboxed"));
+
+        // Set the search bar.
+        let searchBarDiv = document.getElementById("main_search_div");
+        this.searchBox = new SearchBox(searchBarDiv)
 
         // Connect user interface events.
 
@@ -205,6 +218,120 @@ export class ApplicationView extends View {
     }
 
     /**
+     * That function is use to diplay the room creation dialog.
+     */
+    displayCreateRoomDialog() {
+        // Set the contact interfaces.
+        if (document.getElementById("create_room_form") == undefined) {
+            let html = `
+            <div id="create_room_form">
+                <div>
+                    <div class="row" style="display: flex; align-items: baseline;">
+                        <div class="col s4">Room Name:</div>
+                        <input class="col s8 white-text" id="room_name_input" type="text"/>       
+                    </div>
+                    <div class="row" style="display: flex; align-items: baseline;">
+                        <div class="col s4">Subject(s):</div>
+                        <input class="col s8 white-text" id="room_subject_input" type="text"/>       
+                    </div>
+                    <div class="row" style="display: flex;align-items: baseline;">
+                        <div class="col s4">Room type:</div>
+                        <div class="col s8">
+                            <p>
+                                <label>
+                                <input id="room_type_public" name="group1" type="radio" checked />
+                                <span>Public</span>
+                                </label>
+                            </p>
+                            <p>
+                                <label>
+                                <input name="group1" type="radio"  />
+                                <span>Private</span>
+                                </label>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                <div style="display: flex; padding: 10px; justify-content: flex-end;">
+                    <a id="room_cancel_btn" href="javascript:void(0)">Cancel</a>
+                    <a id="room_create_btn" style="padding-left: 10px;" href="javascript:void(0)">Create</a>        
+                </div>
+            </div>
+            `;
+
+            let msgBox = this.displayMessage(html)
+
+            // room name input.
+            document.getElementById("room_name_input").focus()
+
+            // set the action here.
+            let room_create_btn = document.getElementById("room_create_btn");
+            room_create_btn.onclick = () => {
+                let roomName = (<any>document.getElementById("room_name_input")).value;
+                let roomSubject = (<any>document.getElementById("room_subject_input"))
+                    .value;
+                let roomType = (<any>document.getElementById("room_type_public")).checked;
+
+                if (roomType) {
+                    this.model.createRoom(
+                        roomName,
+                        roomSubject,
+                        RoomType.Public
+                    );
+                } else {
+                    this.model.createRoom(
+                        roomName,
+                        roomSubject,
+                        RoomType.Private
+                    );
+                }
+
+                msgBox.dismiss()
+            };
+
+            let room_cancel_btn = document.getElementById("room_cancel_btn");
+            room_cancel_btn.onclick = () => {
+                msgBox.dismiss()
+            }
+        }
+    }
+
+    /**
+     * Display the contact creation dialog.
+     */
+    displayCreateContactDialog(){
+        if (document.getElementById("new_contact_dialog") == undefined) {
+            let html = `
+            <div id="new_contact_dialog">
+                <div>
+                    <p>Enter the name or the email of contact to add</p>
+                    <input id="new_contact_input" type="text" class="white-text"></input>
+                </div>
+                <div style="display: flex; padding: 10px; justify-content: flex-end;">
+                    <a href="javascript:void(0)" id="new_contact_cancel_btn">Cancel</a>
+                    <a href="javascript:void(0)" id="new_contact_invite_btn" style="padding-left: 10px;">Invite</a>
+                </div>
+            </div>
+            `
+            // append the 
+            let msgBox = this.displayMessage(html)
+            let newContactInput = document.getElementById("new_contact_input")
+            newContactInput.focus()
+
+            let newContactCancelBtn = document.getElementById("new_contact_cancel_btn")
+            newContactCancelBtn.onclick = () => {
+                msgBox.dismiss();
+            }
+
+            let newContactInviteBtn = document.getElementById("new_contact_invite_btn")
+            newContactInviteBtn.onclick = () => {
+                let contact = (<any>newContactInput).value;
+                console.log(contact)
+                msgBox.dismiss();
+            }
+        }
+    }
+    /**
      * Open a new session.
      */
     openSession(account: Account) {
@@ -215,6 +342,12 @@ export class ApplicationView extends View {
         document.getElementById("login_lnk_1").style.display = "none";
         document.getElementById("register_lnk_0").style.display = "none";
         document.getElementById("register_lnk_1").style.display = "none";
+
+        // show the search bar...
+        this.searchBox.show()
+
+        // hide the icon.
+        document.getElementById("application_logo").style.display = "none";
 
         // display logout menu.
         document.getElementById("logout_lnk_0").style.display = "";
@@ -246,7 +379,6 @@ export class ApplicationView extends View {
 
         let elements = document.createRange().createContextualFragment(`
         <li>
-            <a data-target="modal1" class="modal-trigger" style="display:none;"  id="modal_trigger"></a>
             <a style="padding: 0 16px;" class="waves-effect waves-teal">
                 <div style="display:flex;">
                     <span style="flex-grow: 1;" tile="Discutions you have created">My Discutions</span> 
@@ -258,94 +390,25 @@ export class ApplicationView extends View {
             <ul class="collapsible collapsible-accordion" id="roomList">
             </ul>
         </li>
+        <li>
+            <a style="padding: 0 16px;" class="waves-effect waves-teal">
+                <div style="display:flex;">
+                    <span style="flex-grow: 1;" tile="The list of your contact">My Contacts</span> 
+                    <i id="add_contact_btn" class="material-icons" style="align-self: center;">add_circle</i>
+                </div>
+            </a>
+        </li>
+        <li>
+            <ul class="collapsible collapsible-accordion" id="contactList">
+            </ul>
+        </li>
         `);
 
+        // set the sidenave content.
         sidenav.appendChild(elements);
 
-
-        let modal = document.createElement("div");
-        modal.className = "modal open";
-        modal.id = "modal1";
-        modal.style.maxWidth = "550px";
-        modal.innerHTML = `
-        <div class="modal-content">
-            <div class="row">
-            <div class="col s4">
-                Room Name:
-            </div>
-            <div class="col s8">
-                <div class="input-field inline">
-                    <input id="room_name_input" type="text">       
-                    <span></span>
-                </div>
-            </div>
-            </div>
-            <div class="row">
-            <div class="col s4">
-                Subject:
-            </div>
-            <div class="col s8">
-                <div class="input-field inline">
-                    <input id="room_subject_input" type="text">       
-                    <span></span>
-                </div>
-            </div>
-            </div>
-            <div class="row">
-            <div class="col s4">
-                Room type:
-            </div>
-            <div class="col s8">
-                <p>
-                    <label>
-                    <input id="room_type_public" name="group1" type="radio" checked />
-                    <span>Public</span>
-                    </label>
-                </p>
-                <p>
-                    <label>
-                    <input name="group1" type="radio"  />
-                    <span>Private</span>
-                    </label>
-                </p>
-            </div>
-            </div>
-        </div>
-        <div class="modal-footer">
-            <a id="room_create_btn" class="modal-close waves-effect waves-green btn-flat">Create</a>        
-        </div>`;
-
-        document.body.appendChild(modal);
-        M.Modal.init(modal, {});
-        //Connect add room action
-        let add_room_btn = document.getElementById("add_room_btn");
-        let room_create_btn = document.getElementById("room_create_btn");
-
-        add_room_btn.onclick = (event: any) => {
-            event.stopPropagation();
-            document.getElementById("modal_trigger").click();
-        };
-
-        room_create_btn.onclick = () => {
-            let roomName = (<any>document.getElementById("room_name_input")).value;
-            let roomSubject = (<any>document.getElementById("room_subject_input"))
-                .value;
-            let roomType = (<any>document.getElementById("room_type_public")).checked;
-
-            if (roomType) {
-                this.model.createRoom(
-                    roomName,
-                    roomSubject,
-                    RoomType.Public
-                );
-            } else {
-                this.model.createRoom(
-                    roomName,
-                    roomSubject,
-                    RoomType.Private
-                );
-            }
-        };
+        /////////////////////////////////////////////////
+        // session panel
 
         // Set the new session state.
         sessionPanel.onStateChange = (state: string) => {
@@ -425,12 +488,33 @@ export class ApplicationView extends View {
             r.readAsDataURL(file); // read as BASE64 format
         };
 
+        /////////////////////////////////////////////////
+        // Room creation and initialisation.
+
+        //Connect add room action
+        let add_room_btn = document.getElementById("add_room_btn");
+
+        add_room_btn.onclick = (event: any) => {
+            event.stopPropagation();
+            this.displayCreateRoomDialog()
+        };
+
+        // init the rooms
+        this.model.initRooms();
+
+        /////////////////////////////////////////////////
+        // Contact creation and initialisation.
+        let add_contact_btn = document.getElementById("add_contact_btn");
+        add_contact_btn.onclick = (event: any) => {
+            event.stopPropagation();
+            this.displayCreateContactDialog()
+        };
+
         // Set drop-downs
         M.Dropdown.init(document.querySelectorAll(".dropdown-trigger"), {
             constrainWidth: false
         });
 
-        this.model.initRooms();
     }
 
     closeSession(account: Account) {
@@ -448,6 +532,12 @@ export class ApplicationView extends View {
         // display the sidenave menu
         document.getElementById("main_sidenav").style.display = "none";
         document.getElementById("main_sidenav_lnk").style.display = "none";
+
+        // hide the search bar...
+        this.searchBox.hide()
+
+        // show the icon.
+        document.getElementById("application_logo").style.display = "flex";
 
         // Clear the workspace.
         document.getElementById(
@@ -471,9 +561,10 @@ export class ApplicationView extends View {
         this.refresh_rooms_listeners.clear();
     }
 
+
     appendRoom(room: Room, index: number) {
         // do nothing if the side menu already exist.
-        if(document.getElementById(room.name + "_side_menu") != undefined){
+        if (document.getElementById(room.name + "_side_menu") != undefined) {
             return
         }
 
@@ -483,7 +574,7 @@ export class ApplicationView extends View {
         let txt = `
         <li id="${room.name + "_side_menu"}">
             <a class="collapsible-header waves-effect waves-teal" id="${uuid}" > 
-                <i id="${uuid + "_join_btn"}" name="join_btn" class="material-icons" title="join the room ${room.name}" >input</i> 
+                <i id="${room.id + "_join_btn"}" name="join_btn" class="material-icons" title="join the room ${room.name}" >input</i> 
                 <span id="${uuid + "_count"}" class="badge">${room.participants.length.toString()}</span> ${room.name}</a>
             <div class="collapsible-body" style="">
                     <ul id=${uuid2}>
@@ -492,7 +583,7 @@ export class ApplicationView extends View {
             </div>
         </li>
         `;
-        
+
         let elements = document.createRange().createContextualFragment(txt);
         roomList.appendChild(elements);
 
@@ -544,10 +635,14 @@ export class ApplicationView extends View {
             }
         }
 
-        let joinBtn = document.getElementById(uuid + "_join_btn");
+        let joinBtn = document.getElementById(room.id + "_join_btn");
 
         joinBtn.onclick = (evt: any) => {
             evt.stopPropagation();
+
+            // clear the actual display.
+            document.getElementById("workspace").innerHTML = ""
+
             // display all join room buttons
             let btns = document.getElementsByName("join_btn")
             btns.forEach((btn: any) => {
