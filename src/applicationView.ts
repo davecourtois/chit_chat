@@ -14,6 +14,9 @@ import { randomUUID, randomIntFromInterval } from "./utility";
 import { View } from "./components/view";
 import { Model } from "./model";
 import { SearchBox } from "./search";
+import { FindOneRqst, FindOneResp } from "globular-web-client/lib/persistence/persistencepb/persistence_pb";
+import { application, domain } from ".";
+import { AccountExistRqst } from "globular-web-client/lib/ressource/ressource_pb";
 
 /**
  * The main user interface.
@@ -262,7 +265,8 @@ export class ApplicationView extends View {
             let msgBox = this.displayMessage(html)
 
             // room name input.
-            document.getElementById("room_name_input").focus()
+            let room_name_input = document.getElementById("room_name_input")
+            room_name_input.focus()
 
             // set the action here.
             let room_create_btn = document.getElementById("room_create_btn");
@@ -293,18 +297,26 @@ export class ApplicationView extends View {
             room_cancel_btn.onclick = () => {
                 msgBox.dismiss()
             }
+
+            room_name_input.onkeyup = (evt:any)=>{
+                if(evt.keyCode == 13){
+                    room_create_btn.click()
+                }else if(evt.keyCode == 27){
+                    msgBox.dismiss();
+                }
+            }
         }
     }
 
     /**
      * Display the contact creation dialog.
      */
-    displayCreateContactDialog(){
+    displayCreateContactDialog() {
         if (document.getElementById("new_contact_dialog") == undefined) {
             let html = `
             <div id="new_contact_dialog">
                 <div>
-                    <p>Enter the name or the email of contact to add</p>
+                    <p>Enter the name of contact to add</p>
                     <input id="new_contact_input" type="text" class="white-text"></input>
                 </div>
                 <div style="display: flex; padding: 10px; justify-content: flex-end;">
@@ -326,8 +338,34 @@ export class ApplicationView extends View {
             let newContactInviteBtn = document.getElementById("new_contact_invite_btn")
             newContactInviteBtn.onclick = () => {
                 let contact = (<any>newContactInput).value;
-                console.log(contact)
+
+                let rqst = new AccountExistRqst
+                rqst.setId(contact)
+
+                // First test if the account exist...
+                Model.globular.ressourceService.accountExist(rqst, {
+                    token: localStorage.getItem("user_token"),
+                    application: application,
+                    domain: domain
+                }).then(() => {
+                    console.log("----> account exist!")
+                    // TODO send a email to the user to say that someone want to add him as contact.
+                    // Create a contact pending request.
+                    
+
+                }).catch((err: any) => {
+                    this.displayMessage(err, 3000)
+                })
+
                 msgBox.dismiss();
+            }
+
+            newContactInput.onkeyup = (evt:any)=>{
+                if(evt.keyCode == 13){
+                    newContactInviteBtn.click()
+                }else if(evt.keyCode == 27){
+                    msgBox.dismiss();
+                }
             }
         }
     }
