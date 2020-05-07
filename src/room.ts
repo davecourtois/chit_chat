@@ -96,6 +96,44 @@ export class Room extends Model {
     }
 
     this.messages_ = new Array<Message>();
+
+    // Now the event.
+    Room.eventHub.subscribe(
+      "join_room_" + this.name + "_channel",
+      // On subscribe
+      (uuid: string) => {
+        // this.uuid = uuid;
+        this.join_room_listener = uuid;
+
+        Room.eventHub.subscribe(
+          "leave_room_" + this.name + "_channel",
+          // On subscribe
+          (uuid: string) => {
+            this.leave_room_listener = uuid;
+            Room.eventHub.subscribe("delete_room_channel",
+              (uuid: string) => {
+                this.delete_room_listener = uuid
+              },
+              (roomId: string) => {
+                if (this.name == roomId) {
+                  this.onDelete()
+                }
+              }, false)
+          },
+          // On event.
+          (paticipantId: string) => {
+            this.onLeave(paticipantId)
+          },
+          false
+        );
+      },
+      // On event.
+      (paticipantId: any) => {
+        this.onJoin(paticipantId)
+      },
+      false
+    );
+
   }
 
   get id(): string {
@@ -243,59 +281,19 @@ export class Room extends Model {
           // On subscribe
           (uuid: string) => {
             this.room_listener = uuid;
-            Room.eventHub.subscribe(
-              "join_room_" + this.name + "_channel",
-              // On subscribe
-              (uuid: string) => {
-                // this.uuid = uuid;
-                this.join_room_listener = uuid;
-
-                Room.eventHub.subscribe(
-                  "leave_room_" + this.name + "_channel",
-                  // On subscribe
-                  (uuid: string) => {
-                    this.leave_room_listener = uuid;
-
-                    Room.eventHub.subscribe("delete_room_channel",
-                      (uuid: string) => {
-                        this.delete_room_listener = uuid
-                        // publish the message.
-                        Room.eventHub.publish("join_room_" + this.name + "_channel", account.name, false);
-
-                      },
-                      (roomId: string) => {
-                        if (this.name == roomId) {
-                          this.onDelete()
-                        }
-                      }, false)
-
-
-                  },
-                  // On event.
-                  (paticipantId: string) => {
-                    this.onLeave(paticipantId)
-                  },
-                  false
-                );
-              },
-              // On event.
-              (paticipantId: any) => {
-                this.onJoin(paticipantId)
-              },
-              false
-            );
           },
           // On event.
           (str: any) => {
             // init the json object
             let msg = JSON.parse(str)
-
             // call the local listener.
             this.onMessage(new Message(msg.from, msg.text, msg.date, msg._id, msg.likes, msg.dislikes, msg.replies_));
           },
           false
         );
 
+        // publish the message.
+        Room.eventHub.publish("join_room_" + this.name + "_channel", account.name, false);
 
         // get the list of existing message for that room and keep it locally.
         if (this.messages_.length == 0) {
@@ -508,12 +506,6 @@ export class Room extends Model {
       if (leave) {
         // disconnect the listener to display new receive message.
         Room.eventHub.unSubscribe(this.name + "_channel", this.room_listener)
-
-        // disconnect the listener to display joinning user
-        Room.eventHub.unSubscribe("join_room_" + this.name + "_channel", this.join_room_listener)
-
-        // disconnect the listener to display leaving user
-        Room.eventHub.unSubscribe("leave_room_" + this.name + "_channel", this.leave_room_listener)
       }
 
       // push back it color to the array of colors.
@@ -565,7 +557,7 @@ export class Room extends Model {
       msg.delete() // delete local objects.
     })
 
-    
+
     // clear the message list.
     this.messages_.splice(0, this.messages_.length)
 

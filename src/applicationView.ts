@@ -14,7 +14,7 @@ import { randomUUID, randomIntFromInterval } from "./utility";
 import { View } from "./components/view";
 import { Model } from "./model";
 import { SearchBox } from "./search";
-import { FindOneRqst, FindOneResp } from "globular-web-client/lib/persistence/persistencepb/persistence_pb";
+import { InsertOneRqst, InsertOneRsp, ReplaceOneRqst, ReplaceOneRsp, DeleteOneRqst, FindRqst, FindResp } from "globular-web-client/lib/persistence/persistencepb/persistence_pb";
 import { application, domain } from ".";
 import { AccountExistRqst } from "globular-web-client/lib/ressource/ressource_pb";
 
@@ -28,6 +28,10 @@ export class ApplicationView extends View {
     // The refresh room channel.
     private refresh_rooms_listeners: Map<string, string>;
     private delete_room_listener: string;
+
+    // The contact event listener's
+    private add_contact_request_listener: string;
+    private cancel_add_contact_request_listener: string;
 
     // The seach box.
     private searchBox: SearchBox;
@@ -298,13 +302,207 @@ export class ApplicationView extends View {
                 msgBox.dismiss()
             }
 
-            room_name_input.onkeyup = (evt:any)=>{
-                if(evt.keyCode == 13){
+            room_name_input.onkeyup = (evt: any) => {
+                if (evt.keyCode == 13) {
                     room_create_btn.click()
-                }else if(evt.keyCode == 27){
+                } else if (evt.keyCode == 27) {
                     msgBox.dismiss();
                 }
             }
+        }
+    }
+
+    // init outgoing contact request list.
+    initOutgoingContactLst() {
+        let rqst = new FindRqst
+        rqst.setQuery(`{"from":"${this.model.account.name}"}`)
+        rqst.setId("chitchat_db");
+        rqst.setDatabase("chitchat_db");
+        rqst.setCollection("PendingContactRequest");
+
+        let stream = Model.globular.persistenceService.find(rqst, {
+            token: localStorage.getItem("user_token"),
+            application: application,
+            domain: domain
+        });
+
+        stream.on("data", (rsp: FindResp) => {
+            let data = JSON.parse(rsp.getJsonstr())
+            for (var i = 0; i < data.length; i++) {
+                data[i].date = new Date(data[i].date)
+                this.appendOutgoingPendingRequest(data[i])
+            }
+        });
+
+        stream.on("status", status => {
+            if (status.code != 0) {
+                console.log(status.details)
+            }
+        })
+    }
+
+    // init incomming contact request list.
+    initIncomingContactLst() {
+        let rqst = new FindRqst
+        rqst.setQuery(`{"to":"${this.model.account.name}"}`)
+        rqst.setId("chitchat_db");
+        rqst.setDatabase("chitchat_db");
+        rqst.setCollection("PendingContactRequest");
+
+        let stream = Model.globular.persistenceService.find(rqst, {
+            token: localStorage.getItem("user_token"),
+            application: application,
+            domain: domain
+        });
+
+        stream.on("data", (rsp: FindResp) => {
+            let data = JSON.parse(rsp.getJsonstr())
+            for (var i = 0; i < data.length; i++) {
+                data[i].date = new Date(data[i].date)
+                this.appendIncomingPendingRequest(data[i])
+            }
+        });
+
+        stream.on("status", status => {
+            if (status.code != 0) {
+                console.log(status.details)
+            }
+        })
+    }
+
+    /**
+     * Display the number of pending contact request (outgoing + incomming)
+     */
+    setPendingRequestCount() {
+        // Set the number of pending request count.
+        document.getElementById("pending_contact_request_count").innerHTML = document.getElementsByClassName("pending_contact_request").length.toString()
+    }
+
+    /**
+     * Append the outgoing pending request.
+     */
+    appendOutgoingPendingRequest(rqst: any) {
+        if (document.getElementById(rqst._id) == undefined) {
+            let html = `
+            <li id="${rqst._id}" class="pending_contact_request" style="display: flex; flex-direction: column; align-items: center;">
+                <div style="display: flex; width: 100%; padding: 0px 20px 0px 20px;">
+                    <span style="flex-grow: 1;">to: ${rqst.to}</span>
+                    <span>${rqst.date.toLocaleDateString()}</span>
+                </div>
+                <div style="display: flex; width: 100%; justify-content: flex-end; line-height: 1em; padding: 0px 20px 0px 20px;">
+                    <a id="${rqst._id + "_cancel_btn"}" href="javascript:void(0)" style="padding: 0px">cancel</a>
+                </div>
+            </li>
+            `
+            // append at top.
+            document.getElementById("pending_contact_request_lst").insertBefore(document.createRange().createContextualFragment(html), document.getElementById("pending_contact_request_lst").firstChild);
+
+            // Set the number of pending request count.
+            this.setPendingRequestCount()
+
+            // Here I will set the action.
+            let cancelBtn = document.getElementById(rqst._id + "_cancel_btn");
+            cancelBtn.onclick = () => {
+                // I will remove the contact pending request
+                let rqst_ = new DeleteOneRqst
+                rqst_.setQuery(`{"_id":"${rqst._id}"}`)
+                rqst_.setId("chitchat_db");
+                rqst_.setDatabase("chitchat_db");
+                rqst_.setCollection("PendingContactRequest");
+
+                Model.globular.persistenceService.deleteOne(rqst_, {
+                    token: localStorage.getItem("user_token"),
+                    application: application,
+                    domain: domain
+                }).then(() => {
+                    // Cancel the add contact request from the requester.
+                    Model.eventHub.publish(rqst.to + "_cancel_add_contact_request_channel", JSON.stringify(rqst), false);
+                    let div = document.getElementById(rqst._id)
+                    div.parentNode.removeChild(div)
+                    // set the pending request count.
+                    this.setPendingRequestCount()
+                }).catch((err: any) => {
+                    this.displayMessage(err);
+                })
+
+            }
+
+            // init drop down list.
+            let ul = document.getElementById("pending_contact_request_ul");
+            M.Collapsible.init(ul)
+        }
+    }
+
+    /**
+     * Append the pending request.
+     */
+    appendIncomingPendingRequest(rqst: any) {
+        if (document.getElementById(rqst._id) == undefined) {
+            let html = `
+            <li id="${rqst._id}" class="pending_contact_request" style="display: flex; flex-direction: column; align-items: center;">
+                <div style="display: flex; width: 100%; padding: 0px 20px 0px 20px;">
+                    <span style="flex-grow: 1;">from: ${rqst.from}</span>
+                    <span>${rqst.date.toLocaleDateString()}</span>
+                </div>
+                <div style="display: flex; width: 100%; justify-content: flex-end; line-height: 1em; padding: 0px 20px 0px 20px;">
+                    <a id="${rqst._id + "_accept_btn"}" href="javascript:void(0)" style="padding: 0px">accept</a>
+                    <a id="${rqst._id + "_reject_btn"}" href="javascript:void(0)" style="padding: 0px 0px 0px 10px">reject</a>
+                </div>
+            </li>
+            `
+            document.getElementById("pending_contact_request_lst").appendChild(document.createRange().createContextualFragment(html));
+
+            this.setPendingRequestCount()
+
+            // Here I will set the action.
+            let acceptBtn = document.getElementById(rqst._id + "_accept_btn");
+            let rejectBtn = document.getElementById(rqst._id + "_reject_btn");
+
+            acceptBtn.onclick = () => {
+                console.log("you accept the contact")
+                // I will remove the contact pending request
+
+                // Here I will save the contact in the list of contact
+
+                // I will send accept contact event.
+
+            }
+
+            rejectBtn.onclick = () => {
+                // I will remove the contact pending request
+
+                // I will send reject contact event.
+
+                console.log("you reject the contact")
+            }
+
+            // keep track of the listener's.
+            let accept_contact_listener: string
+            let reject_contact_listener: string
+
+            // events...
+            Model.eventHub.subscribe(rqst._id + "_accept_contact_channel",
+                (uuid: string) => {
+                    accept_contact_listener = uuid
+                },
+                (evt: any) => {
+                    // disonnect event
+                    Model.eventHub.unSubscribe(rqst._id + "_accept_contact_channel", accept_contact_listener)
+                    Model.eventHub.unSubscribe(rqst._id + "_reject_contact_channel", reject_contact_listener)
+                }, false)
+
+            Model.eventHub.subscribe(rqst._id + "_reject_contact_channel",
+                (uuid: string) => {
+                    accept_contact_listener = uuid
+                },
+                (evt: any) => {
+                    Model.eventHub.unSubscribe(rqst._id + "_accept_contact_channel", accept_contact_listener)
+                    Model.eventHub.unSubscribe(rqst._id + "_reject_contact_channel", reject_contact_listener)
+                }, false)
+
+            // init drop down list.
+            let ul = document.getElementById("pending_contact_request_ul");
+            M.Collapsible.init(ul)
         }
     }
 
@@ -348,10 +546,45 @@ export class ApplicationView extends View {
                     application: application,
                     domain: domain
                 }).then(() => {
-                    console.log("----> account exist!")
-                    // TODO send a email to the user to say that someone want to add him as contact.
+
                     // Create a contact pending request.
-                    
+                    let rqst = new ReplaceOneRqst
+                    rqst.setId("chitchat_db");
+                    rqst.setDatabase("chitchat_db");
+                    rqst.setCollection("PendingContactRequest");
+
+                    // Set information about the contact to add.
+                    let id = this.model.account.name + "_" + contact;
+                    let contactRequest = {
+                        _id: id,
+                        from: this.model.account.name,
+                        to: contact,
+                        date: new Date()
+                    }
+
+                    rqst.setQuery(`{"_id":"${id}"}`)
+                    rqst.setValue(JSON.stringify(contactRequest));
+                    rqst.setOptions(`[{"upsert": true}]`);
+
+                    // call persist data
+                    Model.globular.persistenceService
+                        .replaceOne(rqst, {
+                            token: localStorage.getItem("user_token"),
+                            application: application,
+                            domain: domain
+                        })
+                        .then((rsp: ReplaceOneRsp) => {
+
+                            // Here the request was saved in the database I will now send it via the event channel.
+                            Model.eventHub.publish(contact + "_add_contact_request_channel", JSON.stringify(contactRequest), false);
+
+                            // I will also append the resquest to the list of pending request.
+                            this.appendOutgoingPendingRequest(contactRequest)
+
+                        }).catch((err: any) => {
+                            this.displayMessage(err, 3000)
+                        })
+
 
                 }).catch((err: any) => {
                     this.displayMessage(err, 3000)
@@ -360,10 +593,10 @@ export class ApplicationView extends View {
                 msgBox.dismiss();
             }
 
-            newContactInput.onkeyup = (evt:any)=>{
-                if(evt.keyCode == 13){
+            newContactInput.onkeyup = (evt: any) => {
+                if (evt.keyCode == 13) {
                     newContactInviteBtn.click()
-                }else if(evt.keyCode == 27){
+                } else if (evt.keyCode == 27) {
                     msgBox.dismiss();
                 }
             }
@@ -419,7 +652,7 @@ export class ApplicationView extends View {
         <li>
             <a style="padding: 0 16px;" class="waves-effect waves-teal">
                 <div style="display:flex;">
-                    <span style="flex-grow: 1;" tile="Discutions you have created">My Discutions</span> 
+                    <span style="flex-grow: 1;" tile="Discutions you have created">New Discutions</span> 
                     <i id="add_room_btn" class="material-icons" style="align-self: center;">add_circle</i>
                 </div>
             </a>
@@ -431,13 +664,36 @@ export class ApplicationView extends View {
         <li>
             <a style="padding: 0 16px;" class="waves-effect waves-teal">
                 <div style="display:flex;">
-                    <span style="flex-grow: 1;" tile="The list of your contact">My Contacts</span> 
+                    <span style="flex-grow: 1;" tile="The list of your contact">Add Contacts</span> 
                     <i id="add_contact_btn" class="material-icons" style="align-self: center;">add_circle</i>
                 </div>
             </a>
         </li>
         <li>
+            <ul id="pending_contact_request_ul" class="collapsible collapsible-accordion">
+                <li>
+                    <a class="collapsible-header waves-effect waves-teal" >
+                        Pending Contact Request
+                        <span id="pending_contact_request_count" class="badge">0</span>
+                    </a>
+                    <div class="collapsible-body">
+                        <ul id="pending_contact_request_lst" style="padding-bottom: 10px;">
+
+                        </ul>
+                    </div>
+                </li>
+            </ul>
+
             <ul class="collapsible collapsible-accordion" id="contactList">
+                <li>
+                    <a class="collapsible-header waves-effect waves-teal" >
+                        Contacts
+                        <span id="" class="badge">0</span>
+                    </a>
+                    <div class="collapsible-body">
+                        
+                    </div>
+                </li>
             </ul>
         </li>
         `);
@@ -553,6 +809,39 @@ export class ApplicationView extends View {
             constrainWidth: false
         });
 
+
+        // Set the add contact listener.
+        Model.eventHub.subscribe(this.model.account.name + "_add_contact_request_channel",
+            (uuid: string) => {
+                this.add_contact_request_listener = uuid;
+            },
+            (evt: any) => {
+                let rqst = JSON.parse(evt)
+                rqst.date = new Date(rqst.date)
+                this.appendIncomingPendingRequest(rqst)
+                this.displayMessage(rqst.from + " want's to add you as contact.", 4000)
+            },
+            false)
+
+        // Set the cancel add contact listener
+        Model.eventHub.subscribe(this.model.account.name + "_cancel_add_contact_request_channel",
+            (uuid: string) => {
+                this.cancel_add_contact_request_listener = uuid;
+            },
+            (evt: any) => {
+                let rqst = JSON.parse(evt)
+                let div = document.getElementById(rqst._id)
+                div.parentNode.removeChild(div)
+                // set the pending request count.
+                this.displayMessage(rqst.from + " cancel it contact request.", 4000)
+                this.setPendingRequestCount()
+            },
+            false)
+
+
+        // Now init the contact list.
+        this.initIncomingContactLst()
+        this.initOutgoingContactLst()
     }
 
     closeSession(account: Account) {
@@ -570,6 +859,12 @@ export class ApplicationView extends View {
         // display the sidenave menu
         document.getElementById("main_sidenav").style.display = "none";
         document.getElementById("main_sidenav_lnk").style.display = "none";
+
+        // close the add contact request channel.
+        Model.eventHub.unSubscribe(this.model.account.name + "_add_contact_request_channel", this.add_contact_request_listener)
+
+        // close the cancel add contact request channel.
+        Model.eventHub.unSubscribe(this.model.account.name + "_cancel_add_contact_request_channel", this.cancel_add_contact_request_listener)
 
         // hide the search bar...
         this.searchBox.hide()
@@ -613,9 +908,10 @@ export class ApplicationView extends View {
         <li id="${room.name + "_side_menu"}">
             <a class="collapsible-header waves-effect waves-teal" id="${uuid}" > 
                 <i id="${room.id + "_join_btn"}" name="join_btn" class="material-icons" title="join the room ${room.name}" >input</i> 
-                <span id="${uuid + "_count"}" class="badge">${room.participants.length.toString()}</span> ${room.name}</a>
-            <div class="collapsible-body" style="">
-                    <ul id=${uuid2}>
+                <span id="${uuid + "_count"}" class="badge">${room.participants.length.toString()}</span> ${room.name}
+            </a>
+            <div class="collapsible-body">
+                    <ul id=${uuid2}  style="padding-bottom: 10px;">
                     
                     </ul>
             </div>
