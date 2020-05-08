@@ -81,6 +81,9 @@ export class ApplicationModel extends Model {
     callback: (resuts: Array<any>) => void,
     errorCallback: (err: any) => void
   ) {
+
+    console.log("----> get participant fro room: ", room)
+
     let database = "chitchat_db";
     let collection = "Participants";
     let rqst = new persistence.AggregateRqst();
@@ -106,6 +109,7 @@ export class ApplicationModel extends Model {
     // Get the stream and set event on it...
     stream.on("data", rsp => {
       results = results.concat(JSON.parse(rsp.getJsonstr()));
+      console.log("----> results: ", results)
     });
 
     stream.on("status", status => {
@@ -176,14 +180,8 @@ export class ApplicationModel extends Model {
       room._id,
       (participants: Array<any>) => {
         let r: Room;
-        let participants_ = participants.find(x => x._id === room.name);
-        if (participants_ == undefined) {
-          participants_ = new Array<string>();
-        } else {
-          participants_ = participants_.participants;
-        }
         if (room.type == 2) {
-          r = new Room(RoomType.Public, room.name, room.creator, this.colors, room.subjects, participants_);
+          r = new Room(RoomType.Public, room.name, room.creator, this.colors, room.subjects, participants);
           this.rooms.set(r.id, r);
           let keys = Array.from(this.rooms.keys());
           let index = keys.indexOf(r.id);

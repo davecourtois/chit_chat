@@ -264,6 +264,21 @@ export class Room extends Model {
     this.replyTo = null;
   }
 
+  deleteChatRequest(account: Account){
+    // delete chat request associated with that room and account.
+    let rqst = new persistence.DeleteRqst
+    rqst.setQuery(`{"from":"${account.name}"}`)
+    rqst.setId("chitchat_db");
+    rqst.setDatabase("chitchat_db");
+    rqst.setCollection("PendingChatRequest");
+
+    Model.globular.persistenceService.delete(rqst, {
+        token: localStorage.getItem("user_token"),
+        application: application,
+        domain: domain
+    })
+  }
+
   /**
    * Join the room.
    * @param account
@@ -328,6 +343,19 @@ export class Room extends Model {
       });
 
     }
+
+    // Set invitation available...
+    let invitationLnks = document.getElementsByClassName("invite_contact_lnk")
+    for (var i = 0; i < invitationLnks.length; i++) {
+      invitationLnks[i].classList.remove("disabled")
+    }
+
+    // Set back sub-discution buttons.
+    let backBtns = document.getElementsByClassName(`exit_subdiscution_btn ${this.name}`)
+    for (var i = 0; i < backBtns.length; i++) {
+      let backBtn = <any>backBtns[i]
+      backBtn.style.display = ""
+    }
   }
 
   /**
@@ -351,7 +379,21 @@ export class Room extends Model {
       });
     }
 
-    // publish close room if there is no more participant.
+    // Set invitation disable...
+    let invitationLnks = document.getElementsByClassName("invite_contact_lnk")
+    for (var i = 0; i < invitationLnks.length; i++) {
+      invitationLnks[i].classList.add("disabled")
+    }
+
+    // delete subdiscution button.
+    let backBtns = document.getElementsByClassName(`exit_subdiscution_btn ${this.name}`)
+    for (var i = 0; i < backBtns.length; i++) {
+      let backBtn = <any>backBtns[i]
+      backBtn.style.display = "none"
+    }
+
+    // remove pending chat request...
+    this.deleteChatRequest(account);
   }
 
   /**
@@ -703,8 +745,8 @@ export class RoomView extends View {
         </div>
         <div class="row">
           <div style="display: flex; justify-content: flex-end;">
-            <a id=${cancel_btn_id} class="waves-effect waves-light btn-small">cancel</a>
-            <a id=${delete_btn_id}  class="waves-effect waves-light btn-small" style="margin-left: 5px;">delete</a>
+            <a id=${cancel_btn_id} >cancel</a>
+            <a id=${delete_btn_id}  style="margin-left: 10px;">delete</a>
           </div>
         </div>
       </div>`)
@@ -801,7 +843,7 @@ export class RoomView extends View {
 
     // Here I will append the back arrow to get back in the main conversation.
     let backBtn = document.createElement("i");
-    backBtn.className = "material-icons";
+    backBtn.className = `material-icons exit_subdiscution_btn ${this.model.name}`;
     backBtn.innerHTML = "arrow_back";
     backBtn.style.position = "absolute";
     backBtn.style.zIndex = "1000";
