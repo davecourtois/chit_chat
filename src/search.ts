@@ -67,7 +67,7 @@ export class SearchBox {
                 let room_query =   `[
                   { "$match": {"$text": { "$search": "${this.input.value}" } } },
                   { "$sort": { "score": { "$meta": "textScore" } } },
-                  { "$project": {"_id":"$_id", "creator":"$creator", "count":{"$size":"$messages"}, "first_date":{"$min":"$messages.date"}, "last_date":{"$max":"$messages.date" } } }
+                  { "$project": {"_id":"$_id", "type":"$type", "creator":"$creator", "count":{"$size":"$messages"}, "first_date":{"$min":"$messages.date"}, "last_date":{"$max":"$messages.date" } } }
                 ]`
 
                 let rqst = new AggregateRqst
@@ -92,7 +92,9 @@ export class SearchBox {
                   let data = JSON.parse(rsp.getJsonstr())
                   // dispach the result locally...
                   for(var i=0; i < data.length; i++){
-                    new RoomSearchResult(div, data[i]._id, data[i].creator, data[i].count, new Date(data[i].first_date), new Date(data[i].last_date))
+                    if(data[i].type == 2){
+                      new RoomSearchResult(div, data[i]._id, data[i].creator, data[i].count, new Date(data[i].first_date), new Date(data[i].last_date))
+                    }
                   }
                 });
       
