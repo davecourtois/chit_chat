@@ -27,7 +27,7 @@ export class ApplicationView extends View {
 
     // The refresh room listeners.
     private refresh_rooms_listeners: Map<string, string>;
-    private delete_room_listener: string;
+    private delete_rooms_listener: Map<string, string>;
 
     // The contact event listener's
     private add_contact_request_listener: string;
@@ -45,33 +45,9 @@ export class ApplicationView extends View {
         // call the view constructor here.
         super(model);
         
-        Model.eventHub.subscribe("delete_room_channel",
-            (uuid: string) => {
-                this.delete_room_listener = uuid;
-            },
-            (roomId: string) => {
-                // disconnect event listners.
-                Model.eventHub.unSubscribe("delete_room_channel", this.delete_room_listener);
-                Model.eventHub.unSubscribe("refresh_rooms_channel", this.refresh_rooms_listeners.get(roomId));
-
-                // I will leave the room...
-                if (this.model.room.name == roomId) {
-                    this.model.room.leave(this.model.account)
-                }
-
-                // I will remove the side menu
-                let roomSideMenu = document.getElementById(roomId + "_side_menu");
-                if (roomSideMenu != undefined) {
-                    roomSideMenu.parentNode.removeChild(roomSideMenu)
-                }
-
-                this.displayMessage("The room " + roomId + " was deleted!", 3000)
-
-
-            }, true)
-
         // keep the map of the refresh room listeners...
         this.refresh_rooms_listeners = new Map<string, string>();
+        this.delete_rooms_listener = new Map<string, string>();
 
         // The basic layout.
         document.body.innerHTML = `    
@@ -1469,6 +1445,7 @@ export class ApplicationView extends View {
 
 
     appendRoom(room: Room, index: number) {
+
         // do nothing if the side menu already exist.
         if (document.getElementById(room.name + "_side_menu") != undefined) {
             return
@@ -1530,6 +1507,31 @@ export class ApplicationView extends View {
                 }
 
             }, true)
+
+        // Here I will subscribe to the delete room channel.
+        Model.eventHub.subscribe(room.name + "_delete_room_channel",
+        (uuid: string) => {
+            this.delete_rooms_listener.set(room.name, uuid);
+        },
+        (roomId: string) => {
+            // disconnect event listners.
+            Model.eventHub.unSubscribe("refresh_rooms_channel", this.refresh_rooms_listeners.get(roomId));
+            Model.eventHub.unSubscribe(room.name + "_delete_room_channel", this.delete_rooms_listener.get(roomId));
+
+            // I will leave the room...
+            if (this.model.room.name == roomId) {
+                this.model.room.leave(this.model.account)
+            }
+
+            // I will remove the side menu
+            let roomSideMenu = document.getElementById(roomId + "_side_menu");
+            if (roomSideMenu != undefined) {
+                roomSideMenu.parentNode.removeChild(roomSideMenu)
+            }
+
+            this.displayMessage("The room " + roomId + " was deleted!", 3000)
+
+        }, false)
 
         document.getElementById(uuid).onclick = (evt: any) => {
             if (this.model.room != undefined) {

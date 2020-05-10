@@ -110,7 +110,7 @@ export class Room extends Model {
           // On subscribe
           (uuid: string) => {
             this.leave_room_listener = uuid;
-            Room.eventHub.subscribe("delete_room_channel",
+            Room.eventHub.subscribe(this.name + "_delete_room_channel",
               (uuid: string) => {
                 this.delete_room_listener = uuid
               },
@@ -479,8 +479,7 @@ export class Room extends Model {
           domain: domain,
           path: `/${application}/rooms/` + this.name
         }).then(() => {
-          console.log("room " + this.name + " was deleted!")
-          Model.eventHub.publish("delete_room_channel", this.name, true)
+          Model.eventHub.publish(this.name + "_delete_room_channel", this.name, false)
         }).catch((err: any) => {
           this.view.displayMessage(err, 2000);
         })
@@ -602,6 +601,8 @@ export class Room extends Model {
     this.messages_.splice(0, this.messages_.length)
 
     // remove the view from it parent. Message will be also remove there.
+    console.log("----->", this.view)
+    
     this.view.element.parentNode.removeChild(this.view.element);
 
     // disconnect the listener to display new receive message.
@@ -613,7 +614,7 @@ export class Room extends Model {
     // disconnect the listener to display leaving user
     Room.eventHub.unSubscribe(this.name + "_leave_room_channel", this.leave_room_listener)
 
-    // disconnect the delete room channel
+    // disconnect the delete room channel (local event)
     Room.eventHub.unSubscribe(this.name + "_delete_room_channel", this.delete_room_listener)
   }
 

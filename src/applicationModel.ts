@@ -173,21 +173,26 @@ export class ApplicationModel extends Model {
    * @param errorCallback 
    */
   appendRoom(room: any, callback: (room: Room) => void, errorCallback: (err: any) => void) {
-    this.getParticipants(
-      room._id,
-      (participants: Array<any>) => {
-        let r: Room;
-        r = new Room(RoomType.Public, room.name, room.creator, this.colors, room.subjects, participants);
-        this.rooms.set(r.id, r);
-        let keys = Array.from(this.rooms.keys());
-        let index = keys.indexOf(r.id);
-        this.view.appendRoom(r, index);
+    if (this.rooms.has(room.name)) {
+      let r = this.rooms.get(room.name)
+      callback(r)
+    } else {
+      this.getParticipants(
+        room._id,
+        (participants: Array<any>) => {
+          let r: Room;
+          r = new Room(RoomType.Public, room.name, room.creator, this.colors, room.subjects, participants);
+          this.rooms.set(r.id, r);
+          let keys = Array.from(this.rooms.keys());
+          let index = keys.indexOf(r.id);
+          this.view.appendRoom(r, index);
 
-        // return the room...
-        callback(r)
-      }, (err: any) => {
-        errorCallback(err)
-      })
+          // return the room...
+          callback(r)
+        }, (err: any) => {
+          errorCallback(err)
+        })
+    }
   }
 
   /**
@@ -232,24 +237,6 @@ export class ApplicationModel extends Model {
 
       })
 
-    // Publish a new room event.
-    Model.eventHub.subscribe(
-      "new_room_event",
-      (uuid: string) => { },
-      (evt: any) => {
-        // Set the dir to display.
-        // Here I must retreive the directory from the given path.
-        let room = JSON.parse(evt);
-        let r: Room;
-        r = new Room(RoomType.Public, room.name, this.account.name, this.colors, room.subjects);
-        this.rooms.set(r.id, r);
-        let keys = Array.from(this.rooms.keys());
-        let index = keys.indexOf(r.id);
-        this.view.appendRoom(r, index);
-      },
-      false
-    );
-
   }
 
   /**
@@ -282,7 +269,7 @@ export class ApplicationModel extends Model {
   // Account management function
   /////////////////////////////////////////////////////////////////////////////
   startRefreshToken() {
-    
+
     setInterval(() => {
       let isExpired = parseInt(localStorage.getItem("token_expired"), 10) < Math.floor(Date.now() / 1000);
       if (isExpired) {
@@ -653,7 +640,12 @@ export class ApplicationModel extends Model {
           domain: domain
         })
           .then(() => {
-            Model.eventHub.publish("new_room_event", room.toString(), false);
+            // Set the dir to display.
+            // Here I must retreive the directory from the given path.
+            this.rooms.set(room.id, room);
+            let keys = Array.from(this.rooms.keys());
+            let index = keys.indexOf(room.id);
+            this.view.appendRoom(room, index);
           })
           .catch((err: any) => {
             this.view.displayMessage(err, 2000);
