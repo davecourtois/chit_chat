@@ -99,14 +99,14 @@ export class Room extends Model {
 
     // Now the event.
     Room.eventHub.subscribe(
-       this.name + "_join_room_channel",
+      this.name + "_join_room_channel",
       // On subscribe
       (uuid: string) => {
         // this.uuid = uuid;
         this.join_room_listener = uuid;
 
         Room.eventHub.subscribe(
-           this.name + "_leave_room_channel",
+          this.name + "_leave_room_channel",
           // On subscribe
           (uuid: string) => {
             this.leave_room_listener = uuid;
@@ -175,7 +175,7 @@ export class Room extends Model {
 
     rqst.setQuery(JSON.stringify({ participant: participantId }));
     rqst.setOptions(`[]`);
-   
+
     Room.globular.persistenceService
       .delete(rqst, {
         token: localStorage.getItem("user_token"),
@@ -183,7 +183,7 @@ export class Room extends Model {
         domain: domain
       })
       .then((rsp: persistence.DeleteRsp) => {
-  
+
         // call the callback if it's define.
         if (callback != undefined) {
           callback();
@@ -262,7 +262,7 @@ export class Room extends Model {
     this.replyTo = null;
   }
 
-  deleteChatRequest(account: Account){
+  deleteChatRequest(account: Account) {
     // delete chat request associated with that room and account.
     let rqst = new persistence.DeleteRqst
     rqst.setQuery(`{"from":"${account.name}"}`)
@@ -271,9 +271,9 @@ export class Room extends Model {
     rqst.setCollection("PendingChatRequest");
 
     Model.globular.persistenceService.delete(rqst, {
-        token: localStorage.getItem("user_token"),
-        application: application,
-        domain: domain
+      token: localStorage.getItem("user_token"),
+      application: application,
+      domain: domain
     })
   }
 
@@ -369,7 +369,7 @@ export class Room extends Model {
 
         // publish leave room event. * The listener's will be deconnect in event handler function
         // after the publish event is received.
-        Room.eventHub.publish( this.name + "_leave_room_channel", account.name, false);
+        Room.eventHub.publish(this.name + "_leave_room_channel", account.name, false);
 
         if (callback != undefined) {
           callback();
@@ -587,6 +587,20 @@ export class Room extends Model {
   }
 
   /**
+   * Close event listeners.
+   */
+  close() {
+    // disconnect the listener to display joinning user
+    Room.eventHub.unSubscribe(this.name + "_join_room_channel", this.join_room_listener)
+
+    // disconnect the listener to display leaving user
+    Room.eventHub.unSubscribe(this.name + "_leave_room_channel", this.leave_room_listener)
+
+    // disconnect the delete room channel (local event)
+    Room.eventHub.unSubscribe(this.name + "_delete_room_channel", this.delete_room_listener)
+  }
+
+  /**
    * That function was call when a room is delete.
    */
   onDelete() {
@@ -601,21 +615,11 @@ export class Room extends Model {
     this.messages_.splice(0, this.messages_.length)
 
     // remove the view from it parent. Message will be also remove there.
-    console.log("----->", this.view)
-    
     this.view.element.parentNode.removeChild(this.view.element);
 
-    // disconnect the listener to display new receive message.
-    Room.eventHub.unSubscribe(this.name + "_channel", this.room_listener)
+    // close listeners.
+    this.close()
 
-    // disconnect the listener to display joinning user
-    Room.eventHub.unSubscribe(this.name + "_join_room_channel", this.join_room_listener)
-
-    // disconnect the listener to display leaving user
-    Room.eventHub.unSubscribe(this.name + "_leave_room_channel", this.leave_room_listener)
-
-    // disconnect the delete room channel (local event)
-    Room.eventHub.unSubscribe(this.name + "_delete_room_channel", this.delete_room_listener)
   }
 
   /**
@@ -751,18 +755,23 @@ export class RoomView extends View {
       </div>`)
 
       // get the button and set the actions.
-      let cancelBtn = document.getElementById(cancel_btn_id)
-      let deleteBtn = document.getElementById(delete_btn_id)
+      let cancelBtn = <any>document.getElementById(cancel_btn_id)
+      let deleteBtn = <any>document.getElementById(delete_btn_id)
 
+      cancelBtn.onmouseover = deleteBtn.onmouseover = function () {
+        this.style.cursor = "pointer"
+      }
+
+      cancelBtn.onmouseout = deleteBtn.onmouseout = function () {
+        this.style.cursor = "default"
+      }
       cancelBtn.onclick = () => {
         msgBox.dismiss();
       }
 
       deleteBtn.onclick = () => {
-
         // first of all I will remove the collection that contain the room message.
         this.model.delete();
-
         msgBox.dismiss();
       }
 

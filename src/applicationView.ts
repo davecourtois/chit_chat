@@ -493,8 +493,16 @@ export class ApplicationView extends View {
             </div>`)
 
         // get the button and set the actions.
-        let cancelBtn = document.getElementById(cancel_btn_id)
-        let deleteBtn = document.getElementById(delete_btn_id)
+        let cancelBtn = <any>document.getElementById(cancel_btn_id)
+        let deleteBtn = <any>document.getElementById(delete_btn_id)
+
+        cancelBtn.onmouseover = deleteBtn.onmouseover = function(){
+            this.style.cursor = "pointer"
+        }
+        
+        cancelBtn.onmouseout = deleteBtn.onmouseout = function(){
+            this.style.cursor = "default"
+        }
 
         cancelBtn.onclick = () => {
             msgBox.dismiss();

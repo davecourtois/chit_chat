@@ -417,7 +417,15 @@ export class ApplicationModel extends Model {
     // Publish the logout event.
     if (this.room != undefined) {
       this.room.leave(this.account);
+      
     }
+
+    // close rooms 
+    this.rooms.forEach((room:Room)=>{
+      room.close()
+    })
+    // clear the map.
+    this.rooms.clear(); // be sure no more room are in the map.
 
     this.view.closeSession(this.account);
 
@@ -433,7 +441,6 @@ export class ApplicationModel extends Model {
     // Set room to undefined.
     this.room = undefined;
     this.account = undefined;
-
   }
 
   /**
