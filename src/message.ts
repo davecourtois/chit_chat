@@ -243,7 +243,6 @@ export class Message extends Model {
                 callback()
             })
             .catch((err: any) => {
-                console.log(err);
                 let msg = JSON.parse(err.message);
                 errorCallback(msg);
             });
@@ -519,7 +518,6 @@ export class MessageView extends View {
         this.dislikeCount.innerHTML = (<Message>this.model).howManyDislikes().toString()
         this.likeCount.innerHTML = (<Message>this.model).howManyLikes().toString()
         let msg = (<Message>this.model);
-        console.log(msg)
         if (msg.replies.length > 0) {
             let div = document.getElementById(msg.uuid + "replies__div")
             div.style.display = ""

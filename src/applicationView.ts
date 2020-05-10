@@ -1070,7 +1070,8 @@ export class ApplicationView extends View {
                             domain: domain
                         })
                         .then((rsp: ReplaceOneRsp) => {
-
+                            // rsp.getExtension()
+                            console.log(rsp)
                             // Here the request was saved in the database I will now send it via the event channel.
                             Model.eventHub.publish(contact + "_add_contact_request_channel", JSON.stringify(contactRequest), false);
 

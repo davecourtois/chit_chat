@@ -3,6 +3,7 @@ import { Model } from "./model";
 import { AggregateRqst, AggregateResp, FindOneRqst, FindResp } from "globular-web-client/lib/persistence/persistencepb/persistence_pb";
 import { application, domain, applicationModel } from ".";
 import { RoomType, Room } from "./room";
+import { View } from "./components/view";
 
 /**
  * The search box is use to find User and Room.

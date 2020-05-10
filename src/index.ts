@@ -1,5 +1,6 @@
 import { ApplicationView } from "./applicationView"
 import { ApplicationModel } from "./applicationModel"
+import {Account} from "./account"
 
 // global variable.
 export let application = "chitchat";
@@ -69,23 +70,33 @@ function main() {
 
     // Get the applcation data
     applicationModel = new ApplicationModel(() => {
+
         // Login automatically if the user set remember-me checkbox.
         // Create it view.
         applicationView = new ApplicationView(applicationModel);
 
-        let rememberMe = localStorage.getItem("remember-me");
+        let rememberMe = localStorage.getItem("remember_me");
         if (rememberMe) {
             // Here I will renew the last token...
-            this.model.refreshToken(
+            applicationModel.refreshToken(
                 (account: Account) => {
-                    this.openSession(account);
+                    // Open a new session.
+                    applicationView.openSession(account);
+
+                    // keep the token active.
+                    applicationModel.startRefreshToken()
                 },
                 (err: any, account: Account) => {
-                    this.displayMessage(err, 2000);
-                    // close the session if no token are available.
-                    this.closeSession(account);
+                    applicationView.displayMessage(err, 2000);
                 }
             );
+        }else{
+            // simply remove invalid token and user infos.
+            localStorage.removeItem("remember_me");
+            localStorage.removeItem("user_token");
+            localStorage.removeItem("user_name");
+            localStorage.removeItem("user_email");
+            localStorage.removeItem("token_expired");
         }
     });
 }

@@ -99,14 +99,14 @@ export class Room extends Model {
 
     // Now the event.
     Room.eventHub.subscribe(
-      "join_room_" + this.name + "_channel",
+       this.name + "_join_room_channel",
       // On subscribe
       (uuid: string) => {
         // this.uuid = uuid;
         this.join_room_listener = uuid;
 
         Room.eventHub.subscribe(
-          "leave_room_" + this.name + "_channel",
+           this.name + "_leave_room_channel",
           // On subscribe
           (uuid: string) => {
             this.leave_room_listener = uuid;
@@ -175,7 +175,7 @@ export class Room extends Model {
 
     rqst.setQuery(JSON.stringify({ participant: participantId }));
     rqst.setOptions(`[]`);
-
+   
     Room.globular.persistenceService
       .delete(rqst, {
         token: localStorage.getItem("user_token"),
@@ -183,7 +183,7 @@ export class Room extends Model {
         domain: domain
       })
       .then((rsp: persistence.DeleteRsp) => {
-
+  
         // call the callback if it's define.
         if (callback != undefined) {
           callback();
@@ -233,9 +233,7 @@ export class Room extends Model {
         }
       })
       .catch((err: any) => {
-        console.log(err);
-        let msg = JSON.parse(err.message);
-        // this.view.displayMessage(msg.ErrorMsg, 2000);
+        this.view.displayMessage(err, 2000);
       });
   }
 
@@ -308,7 +306,7 @@ export class Room extends Model {
         );
 
         // publish the message.
-        Room.eventHub.publish("join_room_" + this.name + "_channel", account.name, false);
+        Room.eventHub.publish(this.name + "_join_room_channel", account.name, false);
 
         // get the list of existing message for that room and keep it locally.
         if (this.messages_.length == 0) {
@@ -371,7 +369,7 @@ export class Room extends Model {
 
         // publish leave room event. * The listener's will be deconnect in event handler function
         // after the publish event is received.
-        Room.eventHub.publish("leave_room_" + this.name + "_channel", account.name, false);
+        Room.eventHub.publish( this.name + "_leave_room_channel", account.name, false);
 
         if (callback != undefined) {
           callback();
@@ -610,13 +608,13 @@ export class Room extends Model {
     Room.eventHub.unSubscribe(this.name + "_channel", this.room_listener)
 
     // disconnect the listener to display joinning user
-    Room.eventHub.unSubscribe("join_room_" + this.name + "_channel", this.join_room_listener)
+    Room.eventHub.unSubscribe(this.name + "_join_room_channel", this.join_room_listener)
 
     // disconnect the listener to display leaving user
-    Room.eventHub.unSubscribe("leave_room_" + this.name + "_channel", this.leave_room_listener)
+    Room.eventHub.unSubscribe(this.name + "_leave_room_channel", this.leave_room_listener)
 
     // disconnect the delete room channel
-    Room.eventHub.unSubscribe("delete_room_channel", this.delete_room_listener)
+    Room.eventHub.unSubscribe(this.name + "_delete_room_channel", this.delete_room_listener)
   }
 
   /**

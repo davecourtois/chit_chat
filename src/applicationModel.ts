@@ -82,8 +82,6 @@ export class ApplicationModel extends Model {
     errorCallback: (err: any) => void
   ) {
 
-    console.log("----> get participant fro room: ", room)
-
     let database = "chitchat_db";
     let collection = "Participants";
     let rqst = new persistence.AggregateRqst();
@@ -109,7 +107,6 @@ export class ApplicationModel extends Model {
     // Get the stream and set event on it...
     stream.on("data", rsp => {
       results = results.concat(JSON.parse(rsp.getJsonstr()));
-      console.log("----> results: ", results)
     });
 
     stream.on("status", status => {
@@ -164,7 +161,7 @@ export class ApplicationModel extends Model {
 
     stream.on("status", status => {
       if (status.code != 0) {
-        console.log(status.details)
+        errorCallback(status.details)
       }
     })
   }
@@ -180,19 +177,14 @@ export class ApplicationModel extends Model {
       room._id,
       (participants: Array<any>) => {
         let r: Room;
-        if (room.type == 2) {
-          r = new Room(RoomType.Public, room.name, room.creator, this.colors, room.subjects, participants);
-          this.rooms.set(r.id, r);
-          let keys = Array.from(this.rooms.keys());
-          let index = keys.indexOf(r.id);
-          this.view.appendRoom(r, index);
+        r = new Room(RoomType.Public, room.name, room.creator, this.colors, room.subjects, participants);
+        this.rooms.set(r.id, r);
+        let keys = Array.from(this.rooms.keys());
+        let index = keys.indexOf(r.id);
+        this.view.appendRoom(r, index);
 
-          // return the room...
-          callback(r)
-
-        } else {
-          console.log("Private Room need to be implemented");
-        }
+        // return the room...
+        callback(r)
       }, (err: any) => {
         errorCallback(err)
       })
@@ -249,15 +241,11 @@ export class ApplicationModel extends Model {
         // Here I must retreive the directory from the given path.
         let room = JSON.parse(evt);
         let r: Room;
-        if (room.type == 2) {
-          r = new Room(RoomType.Public, room.name, this.account.name, this.colors, room.subjects);
-          this.rooms.set(r.id, r);
-          let keys = Array.from(this.rooms.keys());
-          let index = keys.indexOf(r.id);
-          this.view.appendRoom(r, index);
-        } else {
-          console.log("Private Room need to be implemented");
-        }
+        r = new Room(RoomType.Public, room.name, this.account.name, this.colors, room.subjects);
+        this.rooms.set(r.id, r);
+        let keys = Array.from(this.rooms.keys());
+        let index = keys.indexOf(r.id);
+        this.view.appendRoom(r, index);
       },
       false
     );
@@ -293,6 +281,22 @@ export class ApplicationModel extends Model {
   /////////////////////////////////////////////////////////////////////////////
   // Account management function
   /////////////////////////////////////////////////////////////////////////////
+  startRefreshToken() {
+    
+    setInterval(() => {
+      let isExpired = parseInt(localStorage.getItem("token_expired"), 10) < Math.floor(Date.now() / 1000);
+      if (isExpired) {
+        // console.log("----> the token is expired!")
+        this.refreshToken(() => {
+          console.log("---> token was refresh successfully")
+        }, (err: any) => {
+          // simply display the error on the view.
+          this.view.displayMessage(err)
+        })
+
+      }
+    }, 1000)
+  }
 
   /**
    * Register a new account with the application.
@@ -328,19 +332,44 @@ export class ApplicationModel extends Model {
         // here I will save the user token and user_name in the local storage.
         localStorage.setItem("user_token", token);
         localStorage.setItem("user_name", (<any>decoded).username);
-        localStorage.setItem("user_email", email);
+        localStorage.setItem("token_expired", (<any>decoded).exp);
+        localStorage.setItem("user_email", (<any>decoded).email);
 
         // Callback on login.
         this.account = new Account(name, email);
         onRegister(this.account);
+
+        this.startRefreshToken()
       })
       .catch((err: any) => {
-        console.log(err);
-        let msg = JSON.parse(err.message);
-        onError(msg);
+        onError(err);
       });
 
     return null;
+  }
+
+  /**
+   * Must be called once when the session open.
+   * @param account 
+   */
+  initAccount(account: Account, callback: (account: Account) => void, onError: (err: any) => void) {
+    let userName = account.name
+
+    // Retreive user data...
+    this.readOneUserData(
+      `{"_id":"` + userName + `"}`,
+      (data: any) => {
+        this.account.hasData = true;
+        this.account.firstName = data["firstName_"];
+        this.account.lastName = data["lastName_"];
+        this.account.profilPicture = data["profilPicture_"];
+        callback(account);
+      },
+      (err: any) => {
+        this.account.hasData = false;
+        onError(err);
+      }
+    );
   }
 
   /**
@@ -365,43 +394,31 @@ export class ApplicationModel extends Model {
         let token = rsp.getToken();
         let decoded = jwt(token);
         let userName = (<any>decoded).username;
+        let email = (<any>decoded).email;
 
         // here I will save the user token and user_name in the local storage.
         localStorage.setItem("user_token", token);
+        localStorage.setItem("token_expired", (<any>decoded).exp);
         localStorage.setItem("user_email", email);
         localStorage.setItem("user_name", userName);
 
+        // Start refresh as needed.
+        this.startRefreshToken()
+
         this.account = new Account(userName, email);
+
+        // init account infos.
+        this.initAccount(this.account, onLogin, onError)
 
         //here I will remove the participant
         if (this.room != undefined) {
           this.room.leave(this.account)
         }
 
-        // Retreive user data...
-        this.readOneUserData(
-          `{"_id":"` + userName + `"}`,
-          (data: any) => {
-            this.account.hasData = true;
-            this.account.firstName = data["firstName_"];
-            this.account.lastName = data["lastName_"];
-            this.account.profilPicture = data["profilPicture_"];
-            onLogin(this.account);
-          },
-          (err: any) => {
-            onLogin(this.account);
-            this.account.hasData = false;
-            let msg = JSON.parse(err.message);
-            onError(msg);
-          }
-        );
-
         Model.eventHub.publish("login_event", this.account.name, false);
       })
       .catch(err => {
-        console.log(err);
-        let msg = JSON.parse(err.message);
-        onError(msg);
+        onError(err);
       });
   }
 
@@ -418,6 +435,13 @@ export class ApplicationModel extends Model {
     this.view.closeSession(this.account);
 
     Model.eventHub.publish("logout_event", this.account.name, false);
+
+    // remove token informations
+    localStorage.removeItem("remember_me");
+    localStorage.removeItem("user_token");
+    localStorage.removeItem("user_name");
+    localStorage.removeItem("user_email");
+    localStorage.removeItem("token_expired");
 
     // Set room to undefined.
     this.room = undefined;
@@ -446,21 +470,44 @@ export class ApplicationModel extends Model {
     onError: (err: any, account: Account) => void
   ) {
     let rqst = new ressource.RefreshTokenRqst();
-    let decoded = jwt(localStorage.getItem("user_token"));
     rqst.setToken(localStorage.getItem("user_token"));
 
     Model.globular.ressourceService
       .refreshToken(rqst)
       .then((rsp: ressource.RefreshTokenRsp) => {
         // Refresh the token at session timeout
+        // onNewToken(this.account)
+        let token = rsp.getToken();
+        let decoded = jwt(token);
+        let userName = (<any>decoded).username;
+        let email = (<any>decoded).email;
+
+        // here I will save the user token and user_name in the local storage.
+        localStorage.setItem("user_token", token);
+        localStorage.setItem("token_expired", (<any>decoded).exp);
+        localStorage.setItem("user_name", userName);
+        localStorage.setItem("user_email", email);
+
+        // Set the account
+        this.account = new Account(userName, email)
+
+        // Set the account infos...
+        this.initAccount(this.account,
+          onNewToken,
+          (err: any) => {
+            // call the error callback.
+            onError(err, this.account)
+          })
+
       })
       .catch(err => {
         // remove old information in that case.
+        localStorage.removeItem("remember_me");
         localStorage.removeItem("user_token");
         localStorage.removeItem("user_name");
         localStorage.removeItem("user_email");
-        let msg = JSON.parse(err.message);
-        onError(msg, this.account);
+        localStorage.removeItem("token_expired");
+        onError(err, this.account);
       });
   }
 
@@ -501,9 +548,7 @@ export class ApplicationModel extends Model {
         onSaveAccount(this.account);
       })
       .catch((err: any) => {
-        console.log(err);
-        let msg = JSON.parse(err.message);
-        onError(msg, this.account);
+        onError(err, this.account);
       });
   }
 
@@ -561,32 +606,6 @@ export class ApplicationModel extends Model {
   ////////////////////////////////////////////////////////////////////////////
   // Chat specific functions.
   ////////////////////////////////////////////////////////////////////////////
-
-  /**
-   * Find a participant by it name.
-   * @param name
-   */
-  findParticipantByName(name: string): Account {
-    console.log("findParticipantByName is not implemented!");
-    return null;
-  }
-
-  /**
-   * Find a participant with it email.
-   * @param email
-   */
-  findParticipantByEmail(email: string): Account {
-    console.log("findParticipantByEmail is not implemented!");
-    return null;
-  }
-
-  /**
-   * Each room must contain a subject, that function help to find room for a given subject...
-   * @param subject The subject of the room
-   */
-  findRoomsBySubject(subject: string): Array<Room> {
-    return null;
-  }
 
   /**
    * Create a new Room
