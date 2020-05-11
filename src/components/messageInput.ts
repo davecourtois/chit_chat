@@ -14,7 +14,6 @@ export class MessageInput {
     private uuid: string;
 
     // Interface elements...
-    private imageBtn: any;
     private sendBtn: any;
     private textArea: any;
     private room: Room;
@@ -31,7 +30,6 @@ export class MessageInput {
         <div id="${this.uuid}" class="card-panel" style="height: 144px; padding: 10px; display: flex; flex-direction: column;">
             <textarea id="${this.uuid + "_textarea"}" style="flex-grow: 1; padding: 5px; resize: none;" placeholder="type your message here..."></textarea>
             <div style="display:flex; flex-direction: row; margin-top: 10px; justify-content: flex-end;">
-                <i id="${this.uuid + "_picture_btn"}" class="material-icons right">image</i>
                 <i id="${this.uuid + "_send_btn"}" class="material-icons right disabled">send</i>
             </div>
         </div>
@@ -44,7 +42,6 @@ export class MessageInput {
         // keep the div in the member variable.
         this.div = document.getElementById(this.uuid);
 
-        this.imageBtn = document.getElementById(this.uuid + "_picture_btn");
         this.sendBtn = document.getElementById(this.uuid + "_send_btn");
         this.textArea = document.getElementById(this.uuid + "_textarea");
 
@@ -61,13 +58,6 @@ export class MessageInput {
             this.sendBtn.style.cursor = "default";
         }
 
-        this.imageBtn.onmouseover = ()=>{
-            this.imageBtn.style.cursor = "pointer";
-        }
-
-        this.imageBtn.onmouseleave = ()=>{
-            this.imageBtn.style.cursor = "default";
-        }
 
         // Now the message input...
         this.textArea.onkeyup = ()=>{

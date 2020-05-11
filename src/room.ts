@@ -13,6 +13,7 @@ import { View } from "./components/view";
 import { applicationModel } from "./index"
 import { MessageInput } from "./components/messageInput";
 import { RemoveRessourceRqst, Ressource } from "globular-web-client/lib/ressource/ressource_pb";
+import { AttachementsPanel } from "./attachment";
 
 export enum RoomType {
   Private = 1,
@@ -45,7 +46,6 @@ export class Room extends Model {
   private leave_room_listener: string
   private join_room_listener: string
   private delete_room_listener: string
-
 
   // in case the message is a reply to another message.
   private replyTo: Message;
@@ -166,7 +166,6 @@ export class Room extends Model {
    * @param callback 
    */
   removePaticipant(participantId: string, callback: () => void) {
-
 
     let rqst = new persistence.DeleteRqst();
     rqst.setId("chitchat_db");
@@ -309,37 +308,36 @@ export class Room extends Model {
         Room.eventHub.publish(this.name + "_join_room_channel", account.name, false);
 
         // get the list of existing message for that room and keep it locally.
-        if (this.messages_.length == 0) {
-          let rqst = new persistence.FindRqst
-          rqst.setId("chitchat_db");
-          rqst.setDatabase("chitchat_db");
-          rqst.setCollection("Rooms");
-          rqst.setQuery(`{"_id":"${this.name}"}`)
-          rqst.setOptions(`[{"Projection":{"_id":0, "messages":1}}]`)
+        this.messages_ = new Array<Message>();
 
-          let stream = Model.globular.persistenceService.find(rqst, {
-            token: localStorage.getItem("user_token"),
-            application: application,
-            domain: domain
-          });
+        let rqst = new persistence.FindRqst
+        rqst.setId("chitchat_db");
+        rqst.setDatabase("chitchat_db");
+        rqst.setCollection("Rooms");
+        rqst.setQuery(`{"_id":"${this.name}"}`)
+        rqst.setOptions(`[{"Projection":{"_id":0, "messages":1}}]`)
 
-          stream.on("data", (rsp: persistence.FindResp) => {
-            let data = JSON.parse(rsp.getJsonstr())
-            console.log(data)
-            let messages = data[0].messages;
-            for (var i = 0; i < messages.length; i++) {
-              this.appendMessage(new Message(messages[i].from, messages[i].text, new Date(messages[i].date), messages[i]._id, messages[i].likes, messages[i].dislikes, messages[i].replies_))
-            }
-          });
+        let stream = Model.globular.persistenceService.find(rqst, {
+          token: localStorage.getItem("user_token"),
+          application: application,
+          domain: domain
+        });
 
-          stream.on("status", status => {
-            if (status.code != 0) {
-              console.log(status.details)
-            }
-          })
-        }
+        stream.on("data", (rsp: persistence.FindResp) => {
+          let data = JSON.parse(rsp.getJsonstr())
+          let messages = data[0].messages;
+          for (var i = 0; i < messages.length; i++) {
+            this.appendMessage(new Message(messages[i].from, messages[i].text, new Date(messages[i].date), messages[i]._id, messages[i].likes, messages[i].dislikes, messages[i].replies_))
+          }
+        });
+
+        stream.on("status", status => {
+          if (status.code != 0) {
+            console.log(status.details)
+          }
+        })
+
       });
-
     }
 
     // Set invitation available...
@@ -616,10 +614,10 @@ export class Room extends Model {
 
     // remove the view from it parent. Message will be also remove there.
     this.view.element.parentNode.removeChild(this.view.element);
+    this.view = null;
 
     // close listeners.
     this.close()
-
   }
 
   /**
@@ -653,6 +651,9 @@ export class RoomView extends View {
 
   // The message input.
   private messageInput: MessageInput;
+
+  // The attachement panel.
+  private attachementsPanel: AttachementsPanel
 
   constructor(parent: any, room: Room, index: number) {
 
@@ -692,7 +693,7 @@ export class RoomView extends View {
           </div>
 
         </div>
-        <div  id="${this.uuid + "_side"}" class="hide-on-small-only col m3 card-panel">
+        <div  id="${this.uuid + "_side"}" class="hide-on-small-only col m3 card-panel" style="padding: 0px;">
         </div>
     </div>
     `;
@@ -716,6 +717,9 @@ export class RoomView extends View {
 
     // The side panel.
     this.side = document.getElementById(this.uuid + "_side");
+
+    // Create the attachement panel for that room and put it in the side panel.
+    this.attachementsPanel = new AttachementsPanel(this.side, room.name);
 
     // The message input window.
     this.messageInput = new MessageInput(document.getElementById(this.uuid + "_message_input"), room)

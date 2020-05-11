@@ -1,6 +1,6 @@
 import { randomUUID, isString } from "./utility";
-import { Room, RoomView } from "./room";
-import { ReplaceOneRqst, ReplaceOneRsp, UpdateOneRqst, UpdateOneRsp } from "globular-web-client/lib/persistence/persistencepb/persistence_pb";
+import { Room } from "./room";
+import { UpdateOneRqst, UpdateOneRsp } from "globular-web-client/lib/persistence/persistencepb/persistence_pb";
 import { application, domain, applicationModel } from ".";
 import { Model } from "./model";
 import { View } from "./components/view";

@@ -76,6 +76,7 @@ export class ApplicationModel extends Model {
     });
   }
 
+  
   private getParticipants(
     room: string,
     callback: (resuts: Array<any>) => void,
@@ -409,26 +410,52 @@ export class ApplicationModel extends Model {
       });
   }
 
+
+ /**
+  * Exit application by clearing ressource and sending event to other peers.
+  */
+  exit() {
+    // Publish the logout event.
+    if (this.room != undefined) {
+      this.room.leave(this.account);
+    }
+
+    // close rooms 
+    this.rooms.forEach((room: Room) => {
+      room.close()
+    })
+
+    // clear the map.
+    this.rooms.clear(); // be sure no more room are in the map.
+    this.view.closeSession(this.account);
+
+    // Here I will also make sure that the account is not in participant documents...
+    if (this.account != undefined) {
+      let rqst = new persistence.DeleteRqst
+      rqst.setId("chitchat_db");
+      rqst.setDatabase("chitchat_db");
+      rqst.setCollection("Participants");
+      rqst.setQuery(`{"participant":"${this.account.name}"}`)
+
+      Model.globular.persistenceService.delete(rqst, {
+        token: localStorage.getItem("user_token"),
+        application: application,
+        domain: domain
+      }).then(()=>{
+        console.log("account was remove.")
+      })
+    }
+  }
+
   /**
    * Close the current session explicitelty.
    */
   logout() {
 
-    // Publish the logout event.
-    if (this.room != undefined) {
-      this.room.leave(this.account);
-      
-    }
+    // exit from the application.
+    this.exit()
 
-    // close rooms 
-    this.rooms.forEach((room:Room)=>{
-      room.close()
-    })
-    // clear the map.
-    this.rooms.clear(); // be sure no more room are in the map.
-
-    this.view.closeSession(this.account);
-
+    // explicitly logout the user.
     Model.eventHub.publish("logout_event", this.account.name, false);
 
     // remove token informations

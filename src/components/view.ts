@@ -4,13 +4,14 @@ import { isObject, isString } from "../utility";
 export class View {
  protected model:Model;
 
-  constructor(model: Model){
-    this.model = model;
-    this.model.setView(this);
+  constructor(model?: Model){
+    if(model != undefined){
+      this.model = model;
+      this.model.setView(this);
+    }
   }
 
   getErrorMessage(err:any):string{
-    
     try {
       let errObj = err;
       if(isString(err)){

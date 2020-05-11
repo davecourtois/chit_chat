@@ -8,6 +8,7 @@ export let domain = window.location.hostname;
 export let applicationModel: ApplicationModel;
 export let applicationView: ApplicationView;
 
+
 /**
  * 
  * @param urlToSend 
@@ -70,6 +71,14 @@ function main() {
 
     // Get the applcation data
     applicationModel = new ApplicationModel(() => {
+        
+        // Prevent users to quit whitout inform other participants.
+        window.addEventListener("beforeunload", (event) => {
+            event.preventDefault();
+            event.returnValue = "";//"Unsaved modifications";
+            applicationModel.exit()
+            return event;
+         });
 
         // Login automatically if the user set remember-me checkbox.
         // Create it view.
@@ -98,6 +107,9 @@ function main() {
             localStorage.removeItem("user_email");
             localStorage.removeItem("token_expired");
         }
+
+
+  
     });
 }
 

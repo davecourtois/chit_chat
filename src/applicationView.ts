@@ -17,6 +17,7 @@ import { SearchBox } from "./search";
 import { ReplaceOneRqst, ReplaceOneRsp, DeleteOneRqst, FindRqst, FindResp, FindOneRqst } from "globular-web-client/lib/persistence/persistencepb/persistence_pb";
 import { application, domain } from ".";
 import { AccountExistRqst } from "globular-web-client/lib/ressource/ressource_pb";
+import { AttachementsPanel } from "./attachment";
 
 /**
  * The main user interface.
