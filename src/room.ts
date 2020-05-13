@@ -329,6 +329,22 @@ export class Room extends Model {
           for (var i = 0; i < messages.length; i++) {
             this.appendMessage(new Message(messages[i].from, messages[i].text, new Date(messages[i].date), messages[i]._id, messages[i].likes, messages[i].dislikes, messages[i].replies_))
           }
+
+          // Set message color for each participant.
+          for (var i = 0; i < this.participants_.length; i++) {
+            // set participant message color.
+            let messageBoxs = document.getElementsByName(this.participants_[i] + "_message_box")
+            let color = this.getParticipantColor(this.participants_[i])
+            for (var j = 0; j < messageBoxs.length; j++) {
+              messageBoxs[i].style.border = `1px solid ${color}`;
+            }
+
+            let attachementParticipantDiv = document.getElementById(this.participants_[i] + "_icons_view_files_div")
+            if (attachementParticipantDiv != undefined) {
+              attachementParticipantDiv.style.borderTopColor = color
+            }
+          }
+
         });
 
         stream.on("status", status => {

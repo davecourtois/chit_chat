@@ -359,8 +359,7 @@ export class AttachementsPanel extends View {
     onLeave(participant: string) {
         let div = document.getElementById(participant + "_icons_view_files_div")
         if(div != undefined){
-            let color = this.room.getParticipantColor(participant)
-            div.style.borderTopColor = color
+            div.style.borderTopColor = "#D0D0D0"
         }
     }
 
