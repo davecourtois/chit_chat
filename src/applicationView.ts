@@ -45,7 +45,7 @@ export class ApplicationView extends View {
     constructor(model: ApplicationModel) {
         // call the view constructor here.
         super(model);
-        
+
         // keep the map of the refresh room listeners...
         this.refresh_rooms_listeners = new Map<string, string>();
         this.delete_rooms_listener = new Map<string, string>();
@@ -323,11 +323,11 @@ export class ApplicationView extends View {
         })
     }
 
-    displayChatRequest(chatRequest: any):void{
+    displayChatRequest(chatRequest: any): void {
 
         // if the user is already in the room I will do nothing.
-        if(this.model.room != undefined){
-            if(this.model.room.name == chatRequest.room){
+        if (this.model.room != undefined) {
+            if (this.model.room.name == chatRequest.room) {
                 return
             }
         }
@@ -497,11 +497,11 @@ export class ApplicationView extends View {
         let cancelBtn = <any>document.getElementById(cancel_btn_id)
         let deleteBtn = <any>document.getElementById(delete_btn_id)
 
-        cancelBtn.onmouseover = deleteBtn.onmouseover = function(){
+        cancelBtn.onmouseover = deleteBtn.onmouseover = function () {
             this.style.cursor = "pointer"
         }
-        
-        cancelBtn.onmouseout = deleteBtn.onmouseout = function(){
+
+        cancelBtn.onmouseout = deleteBtn.onmouseout = function () {
             this.style.cursor = "default"
         }
 
@@ -539,42 +539,42 @@ export class ApplicationView extends View {
      * init the contact list.
      */
     initContacts() {
+        if (this.model.account != undefined) {
+            let userName = this.model.account.name;
+            let database = userName + "_db";
+            let collection = "Contacts";
 
-        let userName = this.model.account.name;
-        let database = userName + "_db";
-        let collection = "Contacts";
+            let rqst = new FindRqst
+            rqst.setQuery(`{}`)
+            rqst.setId(database);
+            rqst.setDatabase(database);
+            rqst.setCollection(collection);
 
-        let rqst = new FindRqst
-        rqst.setQuery(`{}`)
-        rqst.setId(database);
-        rqst.setDatabase(database);
-        rqst.setCollection(collection);
+            let stream = Model.globular.persistenceService.find(rqst, {
+                token: localStorage.getItem("user_token"),
+                application: application,
+                domain: domain
+            });
 
-        let stream = Model.globular.persistenceService.find(rqst, {
-            token: localStorage.getItem("user_token"),
-            application: application,
-            domain: domain
-        });
+            let contacts = new Array<any>();
 
-        let contacts = new Array<any>();
+            stream.on("data", (rsp: FindResp) => {
+                contacts = contacts.concat(JSON.parse(rsp.getJsonstr()))
+            });
 
-        stream.on("data", (rsp: FindResp) => {
-            contacts = contacts.concat(JSON.parse(rsp.getJsonstr()))
-        });
+            stream.on("status", status => {
+                if (status.code != 0) {
+                    console.log(status.details)
+                } else {
 
-        stream.on("status", status => {
-            if (status.code != 0) {
-                console.log(status.details)
-            } else {
+                    // Get the list...
+                    let ul = document.getElementById("contactList")
+                    ul.innerHTML = ""
+                    document.getElementById("contactCount").innerHTML = contacts.length.toString();
 
-                // Get the list...
-                let ul = document.getElementById("contactList")
-                ul.innerHTML = ""
-                document.getElementById("contactCount").innerHTML = contacts.length.toString();
-
-                for (var i = 0; i < contacts.length; i++) {
-                    let contact = contacts[i]._id
-                    let html = `
+                    for (var i = 0; i < contacts.length; i++) {
+                        let contact = contacts[i]._id
+                        let html = `
                     <li class="contact_div" id="${contact + "_div"}" style="display: flex; align-items: center;  padding: 0px 20px 0px 20px;">
                         <span style="flex-grow: 1;">${contact}</span>
                         <span>
@@ -583,76 +583,77 @@ export class ApplicationView extends View {
                         <i id="${contact + "_delete_btn"}" class="tiny material-icons" style="cursor: default;">remove</i>
                     </li>
                     `
-                    ul.appendChild(document.createRange().createContextualFragment(html));
+                        ul.appendChild(document.createRange().createContextualFragment(html));
 
-                    // Now I will set the actions.
-                    let deleteBtn = document.getElementById(contact + "_delete_btn")
-                    let inviteBtn = document.getElementById(contact + "_invite_btn")
+                        // Now I will set the actions.
+                        let deleteBtn = document.getElementById(contact + "_delete_btn")
+                        let inviteBtn = document.getElementById(contact + "_invite_btn")
 
-                    deleteBtn.onmouseover = () => {
-                        deleteBtn.style.cursor = "pointer"
-                    }
-
-                    deleteBtn.onmouseout = () => {
-                        deleteBtn.style.cursor = "default"
-                    }
-
-                    deleteBtn.onclick = () => {
-                        this.deleteContact(contact)
-                    }
-
-                    inviteBtn.onmouseenter = () => {
-                        if (this.model.room != undefined) {
-                            inviteBtn.title = "invite " + contact + " to join you in room " + this.model.room.name
-                        } else {
-                            inviteBtn.title = "no room is open to invite " + contact
+                        deleteBtn.onmouseover = () => {
+                            deleteBtn.style.cursor = "pointer"
                         }
-                    }
 
-                    // Here I will set the chat request...
-                    inviteBtn.onclick = () => {
-                        if (!inviteBtn.classList.contains("disabled")) {
-                            let id = this.model.account.name + "_" + contact
-                            let chatRequest = {
-                                "_id": id,
-                                "from": this.model.account.name,
-                                "to": contact,
-                                "date": new Date(),
-                                "room": this.model.room.name
+                        deleteBtn.onmouseout = () => {
+                            deleteBtn.style.cursor = "default"
+                        }
+
+                        deleteBtn.onclick = () => {
+                            this.deleteContact(contact)
+                        }
+
+                        inviteBtn.onmouseenter = () => {
+                            if (this.model.room != undefined) {
+                                inviteBtn.title = "invite " + contact + " to join you in room " + this.model.room.name
+                            } else {
+                                inviteBtn.title = "no room is open to invite " + contact
                             }
-
-                            // Create a contact pending request.
-                            let rqst = new ReplaceOneRqst
-                            rqst.setId("chitchat_db");
-                            rqst.setDatabase("chitchat_db");
-                            rqst.setCollection("PendingChatRequest");
-
-                            rqst.setQuery(`{"_id":"${id}"}`)
-                            rqst.setValue(JSON.stringify(chatRequest));
-                            rqst.setOptions(`[{"upsert": true}]`);
-
-                            // call persist data
-                            Model.globular.persistenceService
-                                .replaceOne(rqst, {
-                                    token: localStorage.getItem("user_token"),
-                                    application: application,
-                                    domain: domain
-                                })
-                                .then((rsp: ReplaceOneRsp) => {
-                                    // Send chat request event to contact.
-                                    Model.eventHub.publish(contact + "_chat_request_channel", JSON.stringify(chatRequest), false);
-                                    this.displayMessage("chat request was send to " + contact, 3000)
-                                }).catch((err: any) => {
-                                    this.displayMessage(err, 3000)
-                                })
                         }
+
+                        // Here I will set the chat request...
+                        inviteBtn.onclick = () => {
+                            if (!inviteBtn.classList.contains("disabled")) {
+                                let id = this.model.account.name + "_" + contact
+                                let chatRequest = {
+                                    "_id": id,
+                                    "from": this.model.account.name,
+                                    "to": contact,
+                                    "date": new Date(),
+                                    "room": this.model.room.name
+                                }
+
+                                // Create a contact pending request.
+                                let rqst = new ReplaceOneRqst
+                                rqst.setId("chitchat_db");
+                                rqst.setDatabase("chitchat_db");
+                                rqst.setCollection("PendingChatRequest");
+
+                                rqst.setQuery(`{"_id":"${id}"}`)
+                                rqst.setValue(JSON.stringify(chatRequest));
+                                rqst.setOptions(`[{"upsert": true}]`);
+
+                                // call persist data
+                                Model.globular.persistenceService
+                                    .replaceOne(rqst, {
+                                        token: localStorage.getItem("user_token"),
+                                        application: application,
+                                        domain: domain
+                                    })
+                                    .then((rsp: ReplaceOneRsp) => {
+                                        // Send chat request event to contact.
+                                        Model.eventHub.publish(contact + "_chat_request_channel", JSON.stringify(chatRequest), false);
+                                        this.displayMessage("chat request was send to " + contact, 3000)
+                                    }).catch((err: any) => {
+                                        this.displayMessage(err, 3000)
+                                    })
+                            }
+                        }
+
                     }
 
+                    M.Collapsible.init(document.getElementById("contacts_ul"))
                 }
-
-                M.Collapsible.init(document.getElementById("contacts_ul"))
-            }
-        })
+            })
+        }
     }
 
     /**
@@ -1519,28 +1520,28 @@ export class ApplicationView extends View {
 
         // Here I will subscribe to the delete room channel.
         Model.eventHub.subscribe(room.name + "_delete_room_channel",
-        (uuid: string) => {
-            this.delete_rooms_listener.set(room.name, uuid);
-        },
-        (roomId: string) => {
-            // disconnect event listners.
-            Model.eventHub.unSubscribe("refresh_rooms_channel", this.refresh_rooms_listeners.get(roomId));
-            Model.eventHub.unSubscribe(room.name + "_delete_room_channel", this.delete_rooms_listener.get(roomId));
+            (uuid: string) => {
+                this.delete_rooms_listener.set(room.name, uuid);
+            },
+            (roomId: string) => {
+                // disconnect event listners.
+                Model.eventHub.unSubscribe("refresh_rooms_channel", this.refresh_rooms_listeners.get(roomId));
+                Model.eventHub.unSubscribe(room.name + "_delete_room_channel", this.delete_rooms_listener.get(roomId));
 
-            // I will leave the room...
-            if (this.model.room.name == roomId) {
-                this.model.room.leave(this.model.account)
-            }
+                // I will leave the room...
+                if (this.model.room.name == roomId) {
+                    this.model.room.leave(this.model.account)
+                }
 
-            // I will remove the side menu
-            let roomSideMenu = document.getElementById(roomId + "_side_menu");
-            if (roomSideMenu != undefined) {
-                roomSideMenu.parentNode.removeChild(roomSideMenu)
-            }
+                // I will remove the side menu
+                let roomSideMenu = document.getElementById(roomId + "_side_menu");
+                if (roomSideMenu != undefined) {
+                    roomSideMenu.parentNode.removeChild(roomSideMenu)
+                }
 
-            this.displayMessage("The room " + roomId + " was deleted!", 3000)
+                this.displayMessage("The room " + roomId + " was deleted!", 3000)
 
-        }, false)
+            }, false)
 
         document.getElementById(uuid).onclick = (evt: any) => {
             if (this.model.room != undefined) {

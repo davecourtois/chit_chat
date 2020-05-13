@@ -719,7 +719,7 @@ export class RoomView extends View {
     this.side = document.getElementById(this.uuid + "_side");
 
     // Create the attachement panel for that room and put it in the side panel.
-    this.attachementsPanel = new AttachementsPanel(this.side, room.name);
+    this.attachementsPanel = new AttachementsPanel(this.side, room);
 
     // The message input window.
     this.messageInput = new MessageInput(document.getElementById(this.uuid + "_message_input"), room)
